@@ -29,7 +29,7 @@ RAZORPAY_KEY_SECRET=your_razorpay_key_secret
 
 ### 3. Restart Development Server
 
-```bash
+```bash¸
 npm run dev
 ```
 
