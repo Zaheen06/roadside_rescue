@@ -256,6 +256,16 @@ export default function LandingPage() {
                 <Phone size={20} />
                 Call Now: +91 98765 43210
               </motion.button>
+              
+              <Link href="/technician/auth">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-4 rounded-2xl font-semibold text-lg shadow-lg flex items-center gap-2 justify-center"
+                >
+                  Technician Portal
+                </motion.button>
+              </Link>
             </div>
           </div>
         </motion.div>

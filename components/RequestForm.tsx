@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { MapPin, Car, Bike, Wrench } from "lucide-react";
+import { loadRazorpayScript } from "@/lib/razorpay";
 
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
@@ -17,6 +18,9 @@ export default function RequestForm() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [cost, setCost] = useState(0);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   const services = [
     { value: "puncture_repair", label: "Puncture Repair", icon: Wrench },
@@ -24,13 +28,15 @@ export default function RequestForm() {
     { value: "tube_replacement", label: "Tube Replacement", icon: Wrench },
   ];
 
-  const getServiceCost = (serviceType: string, vehicleType: string) => {
-    const costs = {
+  const getServiceCost = (serviceType: string, vehicleType: string): number => {
+    const costs: Record<string, Record<string, number>> = {
       puncture_repair: { two_wheeler: 100, car: 200 },
       stepney_change: { car: 200 },
       tube_replacement: { two_wheeler: 500, car: 600 }
     };
-    return costs[serviceType as keyof typeof costs]?.[vehicleType as keyof typeof costs.puncture_repair] || 0;
+    const serviceCosts = costs[serviceType];
+    if (!serviceCosts) return 0;
+    return serviceCosts[vehicleType] || 0;
   };
 
   const getAvailableServices = (vehicleType: string) => {
@@ -61,13 +67,34 @@ export default function RequestForm() {
     }
   };
 
-  const handlePayment = () => {
-    alert(`Redirecting to payment gateway for ₹${cost}`);
-    // Here you would integrate with actual payment gateway
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+    
+    // Load Razorpay script
+    loadRazorpayScript().then(setScriptLoaded);
+  }, []);
+
+  const handlePaymentSuccess = () => {
+    setMsg("Payment successful! Redirecting to dashboard...");
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 2000);
   };
 
-  async function handleSubmit(e: any) {
-    e.preventDefault();
+  const handlePaymentError = (error: string) => {
+    setMsg(`Payment error: ${error}`);
+  };
+
+  const handlePayNow = async () => {
+    if (!scriptLoaded) {
+      setMsg("Payment gateway loading. Please try again.");
+      return;
+    }
+
     setLoading(true);
     setMsg("");
 
@@ -77,28 +104,85 @@ export default function RequestForm() {
       return;
     }
 
+    // First create the request
+    const { data: { user } } = await supabase.auth.getUser();
     const { data: svcData } = await supabase
       .from("services")
       .select("*")
       .eq("key", service)
       .single();
 
-    await supabase.from("requests").insert([
-      {
-        user_id: null,
-        service_id: svcData.id,
-        vehicle_type: vehicle,
-        description: `${svcData.title} request`,
-        lat: parseFloat(lat),
-        lon: parseFloat(lon),
-        address,
-        status: "pending",
-      },
-    ]);
+    const { data: requestData, error: requestError } = await supabase
+      .from("requests")
+      .insert([
+        {
+          user_id: user?.id || null,
+          service_id: svcData.id,
+          vehicle_type: vehicle,
+          description: `${svcData.title} request`,
+          lat: parseFloat(lat),
+          lon: parseFloat(lon),
+          address,
+          status: "pending",
+          estimated_price: cost,
+          price: cost,
+        },
+      ])
+      .select()
+      .single();
 
-    setMsg("Request submitted! A technician will reach you soon.");
-    setLoading(false);
-  }
+    if (requestError) {
+      setMsg("Error creating request: " + requestError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Then trigger payment
+    try {
+      const orderResponse = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestData.id, amount: cost }),
+      });
+
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(orderData.error);
+
+      const options = {
+        key: orderData.key,
+        amount: Math.round(cost * 100),
+        currency: "INR",
+        name: "Roadside Rescue",
+        description: `${svcData.title} request`,
+        order_id: orderData.order_id,
+        prefill: { name: user?.user_metadata?.name, email: user?.email },
+        theme: { color: "#2563eb" },
+        handler: async (response: any) => {
+          const verifyResponse = await fetch("/api/payment/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              request_id: requestData.id,
+            }),
+          });
+          if (verifyResponse.ok) {
+            setMsg("Payment successful! Redirecting...");
+            setTimeout(() => window.location.href = "/dashboard", 2000);
+          }
+        },
+        modal: { ondismiss: () => setLoading(false) },
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (error: any) {
+      setMsg(`Payment error: ${error.message}`);
+      setLoading(false);
+    }
+  };
 
   function useMyLocation() {
     navigator.geolocation.getCurrentPosition((pos) => {
@@ -125,19 +209,35 @@ export default function RequestForm() {
       <div className="grid grid-cols-2 gap-3 mb-6">
         {getAvailableServices(vehicle).map((s) => {
           const Icon = s.icon;
+          const serviceCost = getServiceCost(s.value, vehicle);
           return (
-            <button
-              key={s.value}
-              onClick={() => handleServiceChange(s.value)}
-              className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                service === s.value
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-white/70 backdrop-blur border-gray-300"
-              }`}
-            >
-              <Icon size={20} />
-              <span className="text-sm">{s.label}</span>
-            </button>
+            <div key={s.value} className="relative">
+              <button
+                onClick={() => handleServiceChange(s.value)}
+                className={`w-full flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
+                  service === s.value
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "bg-white/70 backdrop-blur border-gray-300"
+                }`}
+              >
+                <Icon size={20} />
+                <span className="text-sm">{s.label}</span>
+                <span className="text-xs font-bold">₹{serviceCost}</span>
+              </button>
+              {serviceCost > 0 && lat && lon && (
+                <button
+                  onClick={() => {
+                    setService(s.value);
+                    setCost(serviceCost);
+                    setTimeout(() => handlePayNow(), 100);
+                  }}
+                  className="w-full mt-2 bg-green-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-green-700 transition"
+                  disabled={loading}
+                >
+                  Pay Now - ₹{serviceCost}
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -188,34 +288,47 @@ export default function RequestForm() {
         onChange={(e) => setAddress(e.target.value)}
       />
 
-      {/* Cost Display */}
+      {/* Total Amount Display */}
       {cost > 0 && (
-        <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-700 font-medium">Service Cost:</span>
-            <span className="text-2xl font-bold text-green-600">₹{cost}</span>
+        <div className="mt-4 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl border-2 border-green-200">
+          <div className="text-center">
+            <p className="text-sm text-gray-600 mb-2">Total Amount to Pay</p>
+            <p className="text-4xl font-bold text-green-600 mb-2">₹{cost}</p>
+            <p className="text-xs text-gray-500">
+              {services.find(s => s.value === service)?.label} for {vehicles.find(v => v.value === vehicle)?.label}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Payment Button */}
-      {cost > 0 && lat && lon && (
-        <button
-          onClick={handlePayment}
-          className="w-full mt-4 bg-green-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:bg-green-700 transition-all"
-        >
-          Proceed to Payment - ₹{cost}
-        </button>
+      {/* Payment Button - Show after request is created */}
+      {requestId && cost > 0 && (
+        <div className="mt-4">
+          <PaymentButton
+            amount={cost}
+            requestId={requestId}
+            description={`${services.find(s => s.value === service)?.label || "Service"} request`}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            userEmail={user?.email}
+            userName={user?.user_metadata?.name}
+          />
+        </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        className="w-full mt-3 bg-blue-700 text-white py-3 rounded-xl font-semibold shadow-lg hover:bg-blue-800 transition-all"
-        disabled={loading}
-      >
-        {loading ? "Submitting..." : "Request Help (Pay Later)"}
-      </button>
+      {/* Submit Buttons */}
+      {!requestId && cost > 0 && lat && lon && (
+        <div className="mt-4 space-y-3">
+          {/* Pay Now Button - Primary */}
+          <button
+            onClick={handlePayNow}
+            className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-all"
+            disabled={loading}
+          >
+            {loading ? "Processing Payment..." : `Pay Now - ₹${cost}`}
+          </button>
+        </div>
+      )}
 
       {msg && (
         <p className="mt-4 text-center text-green-700 font-medium">

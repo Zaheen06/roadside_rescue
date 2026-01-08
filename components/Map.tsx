@@ -30,7 +30,7 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
   return (
     <div className="w-full h-[300px] rounded-2xl overflow-hidden shadow-lg border border-white/30 animate-fade-in">
       <MapContainer
-        center={[lat, lon]}
+        center={[lat, lon] as [number, number]}
         zoom={16}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
@@ -38,12 +38,12 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="© OpenStreetMap contributors"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
-        <Marker position={[lat, lon]}>
-          <Popup className="font-semibold">
-            <div className="text-center">
+        <Marker position={[lat, lon] as [number, number]}>
+          <Popup>
+            <div className="text-center font-semibold">
               <MapPin className="mx-auto mb-1 text-blue-600" size={20} />
               <div>Your Location</div>
               <div className="text-xs text-gray-600 mt-1">

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { MapPin, Fuel, Car, Bike } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
+import { loadRazorpayScript } from "@/lib/razorpay";
 
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
@@ -19,6 +20,9 @@ export default function PetrolPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [cost, setCost] = useState(0);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   const fuelTypes = [
     { value: "petrol", label: "Petrol", icon: Fuel },
@@ -71,13 +75,34 @@ export default function PetrolPage() {
     }
   };
 
-  const handlePayment = () => {
-    alert(`Redirecting to payment gateway for ₹${cost}`);
-    // Here you would integrate with actual payment gateway
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+    
+    // Load Razorpay script
+    loadRazorpayScript().then(setScriptLoaded);
+  }, []);
+
+  const handlePaymentSuccess = () => {
+    setMsg("Payment successful! Redirecting to dashboard...");
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 2000);
   };
 
-  async function handleSubmit(e: any) {
-    e.preventDefault();
+  const handlePaymentError = (error: string) => {
+    setMsg(`Payment error: ${error}`);
+  };
+
+  const handlePayNow = async () => {
+    if (!scriptLoaded) {
+      setMsg("Payment gateway loading. Please try again.");
+      return;
+    }
+
     setLoading(true);
     setMsg("");
 
@@ -87,28 +112,98 @@ export default function PetrolPage() {
       return;
     }
 
+    // First create the request
     const { data: svcData } = await supabase
       .from("services")
       .select("*")
       .eq("key", "fuel_delivery")
       .single();
 
-    await supabase.from("requests").insert([
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const { data: requestData, error: requestError } = await supabase
+      .from("requests")
+      .insert([
+        {
+          user_id: user?.id || null,
+          service_id: svcData.id,
+          vehicle_type: vehicle,
+          description: `${quantity}L ${fuelType} delivery for ${vehicle}`,
+          lat: parseFloat(lat),
+          lon: parseFloat(lon),
+          address,
+          status: "pending",
+          estimated_price: cost,
+          price: cost,
+        },
+      ])
+      .select()
+      .single();
+
+    if (requestError) {
+      setMsg("Error creating request: " + requestError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Create fuel_requests entry
+    const fuelPrice = fuelPrices[fuelType as keyof typeof fuelPrices];
+    await supabase.from("fuel_requests").insert([
       {
-        user_id: null,
-        service_id: svcData.id,
-        vehicle_type: vehicle,
-        description: `${quantity}L ${fuelType} delivery for ${vehicle}`,
-        lat: parseFloat(lat),
-        lon: parseFloat(lon),
-        address,
-        status: "pending",
+        request_id: requestData.id,
+        fuel_type: fuelType,
+        litres: parseFloat(quantity),
+        price_per_litre: fuelPrice,
+        delivered: false,
       },
     ]);
 
-    setMsg("Fuel delivery request submitted! We'll reach you soon.");
-    setLoading(false);
-  }
+    // Then trigger payment
+    try {
+      const orderResponse = await fetch("/api/payment/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestData.id, amount: cost }),
+      });
+
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(orderData.error);
+
+      const options = {
+        key: orderData.key,
+        amount: Math.round(cost * 100),
+        currency: "INR",
+        name: "Roadside Rescue",
+        description: `${quantity}L ${fuelType} delivery`,
+        order_id: orderData.order_id,
+        prefill: { name: user?.user_metadata?.name, email: user?.email },
+        theme: { color: "#2563eb" },
+        handler: async (response: any) => {
+          const verifyResponse = await fetch("/api/payment/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              request_id: requestData.id,
+            }),
+          });
+          if (verifyResponse.ok) {
+            setMsg("Payment successful! Redirecting...");
+            setTimeout(() => window.location.href = "/dashboard", 2000);
+          }
+        },
+        modal: { ondismiss: () => setLoading(false) },
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (error: any) {
+      setMsg(`Payment error: ${error.message}`);
+      setLoading(false);
+    }
+  };
 
   function useMyLocation() {
     navigator.geolocation.getCurrentPosition((pos) => {
@@ -158,20 +253,38 @@ export default function PetrolPage() {
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">Quantity (Liters)</label>
         <div className="grid grid-cols-4 gap-2">
-          {quantities.map((q) => (
-            <button
-              key={q}
-              onClick={() => handleQuantityChange(q)}
-              className={`p-2 rounded-xl border transition-all flex flex-col items-center ${
-                quantity === q
-                  ? "bg-blue-600 text-white shadow-lg"
-                  : "bg-white/70 backdrop-blur border-gray-300"
-              }`}
-            >
-              <span>{q}L</span>
-              <span className="text-xs">₹{getQuantityPrice(q, fuelType)}</span>
-            </button>
-          ))}
+          {quantities.map((q) => {
+            const quantityPrice = getQuantityPrice(q, fuelType);
+            const totalCost = calculateCost(q, fuelType);
+            return (
+              <div key={q} className="relative">
+                <button
+                  onClick={() => handleQuantityChange(q)}
+                  className={`w-full p-2 rounded-xl border transition-all flex flex-col items-center ${
+                    quantity === q
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "bg-white/70 backdrop-blur border-gray-300"
+                  }`}
+                >
+                  <span>{q}L</span>
+                  <span className="text-xs">₹{quantityPrice}</span>
+                </button>
+                {lat && lon && (
+                  <button
+                    onClick={() => {
+                      setQuantity(q);
+                      setCost(totalCost);
+                      setTimeout(() => handlePayNow(), 100);
+                    }}
+                    className="w-full mt-1 bg-green-600 text-white py-1 rounded-lg text-xs font-semibold hover:bg-green-700 transition"
+                    disabled={loading}
+                  >
+                    Pay ₹{totalCost}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -220,45 +333,57 @@ export default function PetrolPage() {
         onChange={(e) => setAddress(e.target.value)}
       />
 
-      {/* Cost Display */}
+      {/* Total Amount Display */}
       {cost > 0 && (
-        <div className="mt-4 p-4 bg-orange-50 rounded-xl border border-orange-200">
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-600">{quantity}L {fuelType}:</span>
-              <span>₹{parseInt(quantity) * fuelPrices[fuelType as keyof typeof fuelPrices]}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Delivery Fee:</span>
-              <span>₹50</span>
-            </div>
-            <hr className="border-orange-200" />
-            <div className="flex justify-between items-center">
-              <span className="font-medium text-gray-700">Total Cost:</span>
-              <span className="text-2xl font-bold text-orange-600">₹{cost}</span>
+        <div className="mt-4 p-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl border-2 border-orange-200">
+          <div className="text-center">
+            <p className="text-sm text-gray-600 mb-2">Total Amount to Pay</p>
+            <p className="text-4xl font-bold text-orange-600 mb-2">₹{cost}</p>
+            <p className="text-xs text-gray-500">
+              {quantity}L {fuelType.charAt(0).toUpperCase() + fuelType.slice(1)} for {vehicles.find(v => v.value === vehicle)?.label}
+            </p>
+            <div className="mt-3 pt-3 border-t border-orange-200">
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Fuel Cost:</span>
+                <span>₹{parseInt(quantity) * fuelPrices[fuelType as keyof typeof fuelPrices]}</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-600">
+                <span>Delivery Fee:</span>
+                <span>₹50</span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Payment Button */}
-      {cost > 0 && lat && lon && (
-        <button
-          onClick={handlePayment}
-          className="w-full mt-4 bg-green-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:bg-green-700 transition-all"
-        >
-          Proceed to Payment - ₹{cost}
-        </button>
+      {/* Payment Button - Show after request is created */}
+      {requestId && cost > 0 && (
+        <div className="mt-4">
+          <PaymentButton
+            amount={cost}
+            requestId={requestId}
+            description={`${quantity}L ${fuelType} delivery`}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            userEmail={user?.email}
+            userName={user?.user_metadata?.name}
+          />
+        </div>
       )}
 
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        className="w-full mt-3 bg-orange-600 text-white py-3 rounded-xl font-semibold shadow-lg hover:bg-orange-700 transition-all"
-        disabled={loading}
-      >
-        {loading ? "Submitting..." : `Order ${quantity}L ${fuelType.charAt(0).toUpperCase() + fuelType.slice(1)} (Pay Later)`}
-      </button>
+      {/* Submit Buttons */}
+      {!requestId && cost > 0 && lat && lon && (
+        <div className="mt-4 space-y-3">
+          {/* Pay Now Button - Primary */}
+          <button
+            onClick={handlePayNow}
+            className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-all"
+            disabled={loading}
+          >
+            {loading ? "Processing Payment..." : `Pay Now - ₹${cost}`}
+          </button>
+        </div>
+      )}
 
       {msg && (
         <p className="mt-4 text-center text-green-700 font-medium">

@@ -22,28 +22,62 @@ export default function AuthPage() {
     setLoading(true);
     setMessage("");
 
+    // Check if Supabase is configured
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setMessage("Error: Supabase is not configured. Please check your environment variables.");
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
         });
-        if (error) throw error;
-        setMessage("Login successful!");
-        window.location.href = '/request';
+        
+        if (error) {
+          console.error('Login error:', error);
+          throw error;
+        }
+        
+        if (data?.user) {
+          setMessage("Login successful! Redirecting...");
+          // Wait for session to be established
+          await new Promise(resolve => setTimeout(resolve, 300));
+          // Use window.location for a full page reload to ensure session is loaded
+          window.location.href = '/dashboard';
+        }
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
-            data: { name: formData.name }
+            data: { name: formData.name },
+            emailRedirectTo: `${window.location.origin}/auth`,
           }
         });
-        if (error) throw error;
-        setMessage("Account created! Check your email to verify.");
+        
+        if (error) {
+          console.error('Signup error:', error);
+          throw error;
+        }
+        
+        if (data?.user) {
+          // Check if email confirmation is required
+          if (data.user.email_confirmed_at) {
+            setMessage("Account created successfully! Redirecting...");
+            setTimeout(() => {
+              window.location.href = '/dashboard';
+            }, 1000);
+          } else {
+            setMessage("Account created! Please check your email to verify your account before logging in.");
+          }
+        }
       }
     } catch (error: any) {
-      setMessage(error.message);
+      console.error('Auth error:', error);
+      setMessage(error.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -142,12 +176,18 @@ export default function AuthPage() {
           </form>
 
           {message && (
-            <p className={`mt-4 text-center text-sm ${
-              message.includes("successful") || message.includes("created") 
-                ? "text-green-600" : "text-red-600"
+            <div className={`mt-4 p-3 rounded-lg text-center text-sm ${
+              message.includes("successful") || message.includes("created") || message.includes("verify")
+                ? "bg-green-50 text-green-700 border border-green-200" 
+                : "bg-red-50 text-red-700 border border-red-200"
             }`}>
-              {message}
-            </p>
+              <p>{message}</p>
+              {message.includes("verify") && (
+                <p className="text-xs mt-2 text-green-600">
+                  After verifying, you can log in with your credentials.
+                </p>
+              )}
+            </div>
           )}
 
           <div className="mt-6 text-center">

@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Clock, MapPin, CheckCircle, XCircle, Loader, Car, Fuel, Wrench } from "lucide-react";
 import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
+import PaymentButton from "@/components/PaymentButton";
 
 interface Request {
   id: string;
@@ -43,13 +44,13 @@ export default function Dashboard() {
       try {
         const { data: { user }, error } = await supabase.auth.getUser();
         if (!mounted) return;
-        
+
         if (error) {
           console.error('Error getting user:', error);
           setLoading(false);
           return;
         }
-        
+
         setUser(user);
         if (user) {
           await fetchRequests(user.id);
@@ -63,14 +64,14 @@ export default function Dashboard() {
         }
       }
     };
-    
+
     getUser();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-        
+
         if (session?.user) {
           setUser(session.user);
           await fetchRequests(session.user.id);
@@ -207,6 +208,15 @@ export default function Dashboard() {
                 Fuel Delivery
               </motion.button>
             </Link>
+            <Link href="/payment-test">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition"
+              >
+                Pay Now Test
+              </motion.button>
+            </Link>
           </div>
 
           {loading ? (
@@ -277,28 +287,53 @@ export default function Dashboard() {
 
                   <div className="flex items-center justify-between pt-4 border-t border-white/30">
                     <div>
-                      {request.price && (
+                      {request.price && request.price > 0 ? (
                         <p className="text-lg font-bold text-gray-900">
-                          ₹{request.price}
+                          ₹{request.price.toFixed(2)}
                         </p>
-                      )}
-                      {request.estimated_price && !request.price && (
+                      ) : request.estimated_price && request.estimated_price > 0 ? (
                         <p className="text-sm text-gray-600">
-                          Estimated: ₹{request.estimated_price}
+                          Estimated: ₹{request.estimated_price.toFixed(2)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500">
+                          Price pending
                         </p>
                       )}
                     </div>
-                    <div className="flex gap-2">
-                      {request.payment_status === "pending" && request.price && (
-                        <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg text-xs font-semibold">
-                          Payment Pending
-                        </span>
+                    <div className="flex gap-2 flex-wrap items-center">
+                      {request.payment_status === "pending" && (request.price || request.estimated_price) && (
+                        <>
+                          <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg text-xs font-semibold">
+                            Payment Pending
+                          </span>
+                          <div className="w-auto">
+                            <PaymentButton
+                              amount={request.price || request.estimated_price || 0}
+                              requestId={request.id}
+                              description={request.services?.title || request.description}
+                              onSuccess={() => window.location.reload()}
+                              onError={(error) => alert(`Payment error: ${error}`)}
+                              userEmail={user?.email}
+                              userName={user?.user_metadata?.name}
+                            />
+                          </div>
+                        </>
                       )}
                       {request.payment_status === "paid" && (
                         <span className="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-semibold">
                           Paid
                         </span>
                       )}
+                      {(request.price && request.price > 0) ? (
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-sm font-bold">
+                          ₹{request.price}
+                        </span>
+                      ) : (request.estimated_price && request.estimated_price > 0) ? (
+                        <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-sm font-semibold">
+                          Est: ₹{request.estimated_price}
+                        </span>
+                      ) : null}
                       <Link href={`/request/${request.id}`}>
                         <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
                           View Details

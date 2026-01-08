@@ -13,21 +13,59 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Auth error:', error);
+          setUser(null);
+        } else {
+          setUser(user);
+        }
+      } catch (error) {
+        console.error('Error getting user:', error);
+        if (mounted) {
+          setUser(null);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     };
 
     getUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user || null);
-      setLoading(false);
-    });
+    // Set a timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth check timeout - setting loading to false');
+        setLoading(false);
+      }
+    }, 5000);
 
-    return () => subscription.unsubscribe();
-  }, []);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted) return;
+        
+        console.log('Auth state changed:', event);
+        setUser(session?.user || null);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      subscription?.unsubscribe();
+    };
+  }, [loading]);
 
   if (loading) {
     return (

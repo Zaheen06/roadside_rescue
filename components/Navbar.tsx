@@ -55,6 +55,9 @@ export default function Navbar() {
 
             {user ? (
               <>
+                <a href="/dashboard" className="text-gray-700 hover:text-blue-600 font-medium transition">
+                  Dashboard
+                </a>
                 <a href="/request" className="text-gray-700 hover:text-blue-600 font-medium transition">
                   Services
                 </a>
@@ -64,6 +67,9 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <span className="text-gray-400 font-medium cursor-not-allowed">
+                  Dashboard
+                </span>
                 <span className="text-gray-400 font-medium cursor-not-allowed">
                   Services
                 </span>
@@ -115,11 +121,13 @@ export default function Navbar() {
             <a href="/landing" className="text-gray-700 font-medium">Home</a>
             {user ? (
               <>
+                <a href="/dashboard" className="text-gray-700 font-medium">Dashboard</a>
                 <a href="/request" className="text-gray-700 font-medium">Services</a>
                 <a href="/petrol" className="text-gray-700 font-medium">Petrol</a>
               </>
             ) : (
               <>
+                <span className="text-gray-400 font-medium cursor-not-allowed">Dashboard</span>
                 <span className="text-gray-400 font-medium cursor-not-allowed">Services</span>
                 <span className="text-gray-400 font-medium cursor-not-allowed">Petrol</span>
               </>
