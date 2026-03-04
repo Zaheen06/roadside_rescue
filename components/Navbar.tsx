@@ -61,6 +61,15 @@ export default function Navbar() {
                 <a href="/request" className="text-gray-700 hover:text-blue-600 font-medium transition">
                   Services
                 </a>
+                <a href="/payment" className="text-gray-700 hover:text-blue-600 font-medium transition">
+                  Payment
+                </a>
+                <a href="/technician" className="text-gray-700 hover:text-blue-600 font-medium transition">
+                  Technician
+                </a>
+                <a href="/tracking" className="text-gray-700 hover:text-blue-600 font-medium transition">
+                  Track Request
+                </a>
                 <a href="/petrol" className="text-gray-700 hover:text-blue-600 font-medium transition">
                   Petrol
                 </a>
@@ -123,6 +132,9 @@ export default function Navbar() {
               <>
                 <a href="/dashboard" className="text-gray-700 font-medium">Dashboard</a>
                 <a href="/request" className="text-gray-700 font-medium">Services</a>
+                <a href="/payment" className="text-gray-700 font-medium">Payment</a>
+                <a href="/technician" className="text-gray-700 font-medium">Technician</a>
+                <a href="/tracking" className="text-gray-700 font-medium">Track Request</a>
                 <a href="/petrol" className="text-gray-700 font-medium">Petrol</a>
               </>
             ) : (

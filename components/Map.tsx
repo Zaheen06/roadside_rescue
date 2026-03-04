@@ -1,6 +1,7 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { MapPin } from "lucide-react";
 
@@ -15,9 +16,47 @@ const defaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = defaultIcon;
 
+// Component to update map center when props change
+function MapUpdater({ lat, lon }: { lat: number; lon: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([lat, lon], map.getZoom());
+  }, [lat, lon, map]);
+  return null;
+}
+
 export default function Map({ lat, lon }: { lat: number; lon: number }) {
-  // Prevent map crash when lat/lon missing
-  if (!lat || !lon) {
+  const [isClient, setIsClient] = useState(false);
+  const mapIdRef = useRef<string>(`map-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const prevCoordsRef = useRef<{ lat: number; lon: number } | null>(null);
+
+  // Wait for client-side hydration and ensure DOM is ready
+  useEffect(() => {
+    // Check if window and document are ready
+    if (typeof window !== 'undefined' && document.getElementById(mapIdRef.current)) {
+      setIsClient(true);
+    } else {
+      // Try again after a delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        setIsClient(true);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Force new map instance when coordinates change significantly
+  useEffect(() => {
+    if (prevCoordsRef.current && 
+        (Math.abs(prevCoordsRef.current.lat - lat) > 0.0001 || 
+         Math.abs(prevCoordsRef.current.lon - lon) > 0.0001)) {
+      // Coordinates changed significantly, force new map
+      mapIdRef.current = `map-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    prevCoordsRef.current = { lat, lon };
+  }, [lat, lon]);
+
+  // Prevent map crash when lat/lon missing or not client
+  if (!lat || !lon || !isClient) {
     return (
       <div className="w-full p-8 bg-white/60 backdrop-blur-sm rounded-2xl border border-white/30 text-center">
         <MapPin className="mx-auto mb-3 text-gray-400" size={32} />
@@ -28,13 +67,19 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
   }
 
   return (
-    <div className="w-full h-[300px] rounded-2xl overflow-hidden shadow-lg border border-white/30 animate-fade-in">
+    <div 
+      id={mapIdRef.current}
+      key={mapIdRef.current}
+      className="w-full h-[300px] rounded-2xl overflow-hidden shadow-lg border border-white/30 animate-fade-in"
+    >
       <MapContainer
+        key={`container-${mapIdRef.current}`}
         center={[lat, lon] as [number, number]}
         zoom={16}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
         className="rounded-2xl"
+        whenCreated={() => {}}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -52,6 +97,8 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
             </div>
           </Popup>
         </Marker>
+        
+        <MapUpdater lat={lat} lon={lon} />
       </MapContainer>
     </div>
   );

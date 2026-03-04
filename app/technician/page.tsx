@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { socket } from "@/lib/socket";
 import { motion } from "framer-motion";
-import { MapPin, CheckCircle, XCircle, Loader, Clock, Navigation, Phone, Car } from "lucide-react";
+import { MapPin, CheckCircle, XCircle, Loader, Clock, Navigation, Phone, Car, Play, Square, Map as MapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
@@ -15,10 +16,28 @@ export default function TechnicianDashboard() {
   const [technician, setTechnician] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
+  const [isTracking, setIsTracking] = useState(false);
+  const [trackingConnected, setTrackingConnected] = useState(false);
+  const [trackingLogs, setTrackingLogs] = useState<string[]>([]);
   const router = useRouter();
+  const trackingInterval = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     checkTechnicianAuth();
+    
+    // Socket connection for tracking
+    if (socket.connected) {
+      setTrackingConnected(true);
+    }
+    
+    socket.on("connect", () => setTrackingConnected(true));
+    socket.on("disconnect", () => setTrackingConnected(false));
+    
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+      stopTracking();
+    };
   }, []);
 
   async function checkTechnicianAuth() {
@@ -184,6 +203,111 @@ export default function TechnicianDashboard() {
     setIsAvailable(newStatus);
   }
 
+  // Tracking functions
+  function addTrackingLog(msg: string) {
+    setTrackingLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 4)]);
+  }
+
+  async function startTracking() {
+    if (!currentRequest || !trackingConnected) {
+      alert("Not connected to tracking server. Please ensure tracking server is running.");
+      return;
+    }
+
+    setIsTracking(true);
+    addTrackingLog(`Starting location tracking for request: ${currentRequest.id}`);
+
+    // Join tracking room
+    socket.emit("join_track_room", currentRequest.id);
+    addTrackingLog(`Joined tracking room: ${currentRequest.id}`);
+
+    // Start sending location updates
+    trackingInterval.current = setInterval(async () => {
+      if (!navigator.geolocation) {
+        addTrackingLog("Geolocation not supported");
+        stopTracking();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        const payload = {
+          orderId: currentRequest.id,
+          deliveryPartnerId: technician.id,
+          lat,
+          lng: lon,
+          timestamp: Date.now(),
+          status: "ontheway"
+        };
+
+        socket.emit("location_update", payload);
+        addTrackingLog(`Sent: ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+        
+        // Update technician location in database
+        await supabase
+          .from("technicians")
+          .update({ current_lat: lat, current_lon: lon, tech_status: "moving" })
+          .eq("id", technician.id);
+      }, (error) => {
+        addTrackingLog(`GPS error: ${error.message}`);
+      });
+    }, 3000); // Update every 3 seconds
+  }
+
+  function stopTracking() {
+    if (trackingInterval.current) {
+      clearInterval(trackingInterval.current);
+      trackingInterval.current = null;
+    }
+    setIsTracking(false);
+    addTrackingLog("Tracking stopped");
+  }
+
+  async function markArrived() {
+    if (!currentRequest || !technician) return;
+
+    // Stop tracking if running
+    if (isTracking) {
+      stopTracking();
+    }
+
+    await supabase
+      .from("requests")
+      .update({ status: "in_progress" })
+      .eq("id", currentRequest.id);
+
+    alert("Marked as Arrived!");
+    fetchAssignedRequest(technician.id);
+  }
+
+  // Complete delivery and stop tracking
+  async function markCompleted() {
+    // Stop tracking if running
+    if (isTracking) {
+      stopTracking();
+      socket.emit("order_delivered", currentRequest.id);
+    }
+
+    if (!currentRequest || !technician) return;
+
+    await supabase
+      .from("requests")
+      .update({ status: "completed" })
+      .eq("id", currentRequest.id);
+
+    await supabase
+      .from("technicians")
+      .update({ is_available: true, tech_status: "idle" })
+      .eq("id", technician.id);
+
+    setIsAvailable(true);
+    setCurrentRequest(null);
+    fetchAvailableRequests();
+    alert("Work Completed!");
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.push("/technician/auth");
@@ -240,6 +364,10 @@ export default function TechnicianDashboard() {
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Current Request</h2>
             <div className="space-y-4">
               <div>
+                <p className="text-sm text-gray-600 mb-1">Request ID</p>
+                <p className="text-lg font-mono font-semibold text-gray-900">{currentRequest.id.slice(0, 8)}...</p>
+              </div>
+              <div>
                 <p className="text-sm text-gray-600 mb-1">Service</p>
                 <p className="text-lg font-semibold text-gray-900">
                   {currentRequest.services?.title || currentRequest.description}
@@ -262,6 +390,56 @@ export default function TechnicianDashboard() {
                   <Map lat={currentRequest.lat} lon={currentRequest.lon} />
                 </div>
               )}
+              
+              {/* Tracking Section */}
+              <div className="bg-slate-900 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-white font-semibold flex items-center gap-2">
+                    <MapIcon size={18} />
+                    Live Tracking
+                  </h3>
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    trackingConnected 
+                      ? "bg-green-500/20 text-green-400" 
+                      : "bg-red-500/20 text-red-400"
+                  }`}>
+                    {trackingConnected ? "Connected" : "Disconnected"}
+                  </span>
+                </div>
+                
+                <div className="flex gap-2 mb-3">
+                  {!isTracking ? (
+                    <button
+                      onClick={startTracking}
+                      disabled={!trackingConnected || currentRequest.status === "completed"}
+                      className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Play size={16} />
+                      Start Tracking
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopTracking}
+                      className="flex-1 bg-red-600 text-white py-2 rounded-lg font-semibold hover:bg-red-700 transition flex items-center justify-center gap-2"
+                    >
+                      <Square size={16} />
+                      Stop Tracking
+                    </button>
+                  )}
+                </div>
+                
+                {/* Tracking Logs */}
+                <div className="bg-slate-800 rounded-lg p-3 text-xs font-mono h-24 overflow-auto">
+                  {trackingLogs.length === 0 ? (
+                    <span className="text-slate-500">Tracking logs will appear here...</span>
+                  ) : (
+                    trackingLogs.map((log, i) => (
+                      <div key={i} className="text-green-400 mb-1">{log}</div>
+                    ))
+                  )}
+                </div>
+              </div>
+              
               <div className="flex gap-3">
                 {currentRequest.status === "accepted" && (
                   <button
@@ -280,6 +458,15 @@ export default function TechnicianDashboard() {
                   </button>
                 )}
               </div>
+              
+              {/* Share tracking link with customer */}
+              <a
+                href={`/tracking/${currentRequest.id}`}
+                target="_blank"
+                className="block text-center text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                View on Customer Tracking Page ↗
+              </a>
             </div>
           </motion.div>
         )}

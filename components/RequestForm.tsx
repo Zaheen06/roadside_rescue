@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { MapPin, Car, Bike, Wrench } from "lucide-react";
 import { loadRazorpayScript } from "@/lib/razorpay";
+import PaymentButton from "@/components/PaymentButton";
 
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
@@ -21,6 +22,7 @@ export default function RequestForm() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
 
   const services = [
     { value: "puncture_repair", label: "Puncture Repair", icon: Wrench },
@@ -73,7 +75,7 @@ export default function RequestForm() {
       setUser(user);
     };
     getUser();
-    
+
     // Load Razorpay script
     loadRazorpayScript().then(setScriptLoaded);
   }, []);
@@ -89,97 +91,58 @@ export default function RequestForm() {
     setMsg(`Payment error: ${error}`);
   };
 
-  const handlePayNow = async () => {
-    if (!scriptLoaded) {
-      setMsg("Payment gateway loading. Please try again.");
+  const handleProceed = async () => {
+    if (!lat || !lon) {
+      setMsg("Please use your location first.");
       return;
     }
 
     setLoading(true);
     setMsg("");
 
-    if (!lat || !lon) {
-      setMsg("Please use your location first.");
-      setLoading(false);
-      return;
-    }
-
-    // First create the request
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: svcData } = await supabase
-      .from("services")
-      .select("*")
-      .eq("key", service)
-      .single();
-
-    const { data: requestData, error: requestError } = await supabase
-      .from("requests")
-      .insert([
-        {
-          user_id: user?.id || null,
-          service_id: svcData.id,
-          vehicle_type: vehicle,
-          description: `${svcData.title} request`,
-          lat: parseFloat(lat),
-          lon: parseFloat(lon),
-          address,
-          status: "pending",
-          estimated_price: cost,
-          price: cost,
-        },
-      ])
-      .select()
-      .single();
-
-    if (requestError) {
-      setMsg("Error creating request: " + requestError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Then trigger payment
     try {
-      const orderResponse = await fetch("/api/payment/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request_id: requestData.id, amount: cost }),
-      });
+      // Get the database service ID by matching the key
+      const { data: svcData, error: svcError } = await supabase
+        .from("services")
+        .select("id")
+        .eq("key", service)
+        .single();
 
-      const orderData = await orderResponse.json();
-      if (!orderResponse.ok) throw new Error(orderData.error);
+      if (svcError || !svcData) {
+        throw new Error("Service unavailable. Please try again.");
+      }
 
-      const options = {
-        key: orderData.key,
-        amount: Math.round(cost * 100),
-        currency: "INR",
-        name: "Roadside Rescue",
-        description: `${svcData.title} request`,
-        order_id: orderData.order_id,
-        prefill: { name: user?.user_metadata?.name, email: user?.email },
-        theme: { color: "#2563eb" },
-        handler: async (response: any) => {
-          const verifyResponse = await fetch("/api/payment/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              request_id: requestData.id,
-            }),
-          });
-          if (verifyResponse.ok) {
-            setMsg("Payment successful! Redirecting...");
-            setTimeout(() => window.location.href = "/dashboard", 2000);
-          }
-        },
-        modal: { ondismiss: () => setLoading(false) },
-      };
+      const { data: { user } } = await supabase.auth.getUser();
+      const selectedService = services.find(s => s.value === service);
 
-      const razorpay = new (window as any).Razorpay(options);
-      razorpay.open();
-    } catch (error: any) {
-      setMsg(`Payment error: ${error.message}`);
+      const { data: requestData, error: requestError } = await supabase
+        .from("requests")
+        .insert([
+          {
+            user_id: user?.id || null,
+            service_id: svcData.id,
+            vehicle_type: vehicle,
+            description: `${selectedService?.label || service} request for ${vehicle}`,
+            lat: parseFloat(lat),
+            lon: parseFloat(lon),
+            address,
+            status: "pending",
+            estimated_price: cost,
+            price: cost,
+          },
+        ])
+        .select()
+        .single();
+
+      if (requestError) {
+        throw new Error("Error creating request: " + requestError.message);
+      }
+
+      setRequestId(requestData.id);
+      setShowPayment(true);
+    } catch (err: any) {
+      setMsg(err.message || "An unexpected error occurred.");
+    } finally {
       setLoading(false);
     }
   };
@@ -214,29 +177,15 @@ export default function RequestForm() {
             <div key={s.value} className="relative">
               <button
                 onClick={() => handleServiceChange(s.value)}
-                className={`w-full flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${
-                  service === s.value
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-white/70 backdrop-blur border-gray-300"
-                }`}
+                className={`w-full flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${service === s.value
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "bg-white/70 backdrop-blur border-gray-300"
+                  }`}
               >
                 <Icon size={20} />
                 <span className="text-sm">{s.label}</span>
                 <span className="text-xs font-bold">₹{serviceCost}</span>
               </button>
-              {serviceCost > 0 && lat && lon && (
-                <button
-                  onClick={() => {
-                    setService(s.value);
-                    setCost(serviceCost);
-                    setTimeout(() => handlePayNow(), 100);
-                  }}
-                  className="w-full mt-2 bg-green-600 text-white py-2 rounded-lg text-xs font-semibold hover:bg-green-700 transition"
-                  disabled={loading}
-                >
-                  Pay Now - ₹{serviceCost}
-                </button>
-              )}
             </div>
           );
         })}
@@ -250,11 +199,10 @@ export default function RequestForm() {
             <button
               key={v.value}
               onClick={() => handleVehicleChange(v.value)}
-              className={`flex-1 flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
-                vehicle === v.value
-                  ? "bg-green-600 text-white shadow-lg"
-                  : "bg-white/70 backdrop-blur border-gray-300"
-              }`}
+              className={`flex-1 flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${vehicle === v.value
+                ? "bg-green-600 text-white shadow-lg"
+                : "bg-white/70 backdrop-blur border-gray-300"
+                }`}
             >
               <Icon size={20} />
               <span>{v.label}</span>
@@ -302,7 +250,7 @@ export default function RequestForm() {
       )}
 
       {/* Payment Button - Show after request is created */}
-      {requestId && cost > 0 && (
+      {requestId && cost > 0 && showPayment && (
         <div className="mt-4">
           <PaymentButton
             amount={cost}
@@ -317,15 +265,27 @@ export default function RequestForm() {
       )}
 
       {/* Submit Buttons */}
-      {!requestId && cost > 0 && lat && lon && (
+      {!requestId && cost > 0 && lat && lon && !showPayment && (
         <div className="mt-4 space-y-3">
-          {/* Pay Now Button - Primary */}
+          {/* Proceed Button - Primary */}
           <button
-            onClick={handlePayNow}
-            className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-all"
+            onClick={handleProceed}
+            className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-700 transition-all"
             disabled={loading}
           >
-            {loading ? "Processing Payment..." : `Pay Now - ₹${cost}`}
+            {loading ? "Creating Request..." : `Proceed to Payment - ₹${cost}`}
+          </button>
+        </div>
+      )}
+
+      {/* Edit Selection Button - Show after proceeding */}
+      {!requestId && showPayment && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowPayment(false)}
+            className="w-full bg-gray-500 text-white py-3 rounded-xl font-semibold hover:bg-gray-600 transition-all"
+          >
+            Edit Selection
           </button>
         </div>
       )}

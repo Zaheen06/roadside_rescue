@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { MapPin, Fuel, Car, Bike } from "lucide-react";
 import AuthGuard from "@/components/AuthGuard";
 import { loadRazorpayScript } from "@/lib/razorpay";
+import PaymentButton from "@/components/PaymentButton";
 
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
@@ -81,7 +82,7 @@ export default function PetrolPage() {
       setUser(user);
     };
     getUser();
-    
+
     // Load Razorpay script
     loadRazorpayScript().then(setScriptLoaded);
   }, []);
@@ -112,54 +113,60 @@ export default function PetrolPage() {
       return;
     }
 
-    // First create the request
-    const { data: svcData } = await supabase
-      .from("services")
-      .select("*")
-      .eq("key", "fuel_delivery")
-      .single();
-
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    const { data: requestData, error: requestError } = await supabase
-      .from("requests")
-      .insert([
-        {
-          user_id: user?.id || null,
-          service_id: svcData.id,
-          vehicle_type: vehicle,
-          description: `${quantity}L ${fuelType} delivery for ${vehicle}`,
-          lat: parseFloat(lat),
-          lon: parseFloat(lon),
-          address,
-          status: "pending",
-          estimated_price: cost,
-          price: cost,
-        },
-      ])
-      .select()
-      .single();
-
-    if (requestError) {
-      setMsg("Error creating request: " + requestError.message);
-      setLoading(false);
-      return;
-    }
-
-    // Create fuel_requests entry
-    const fuelPrice = fuelPrices[fuelType as keyof typeof fuelPrices];
-    await supabase.from("fuel_requests").insert([
-      {
-        request_id: requestData.id,
-        fuel_type: fuelType,
-        litres: parseFloat(quantity),
-        price_per_litre: fuelPrice,
-        delivered: false,
-      },
-    ]);
-
-    // Then trigger payment
     try {
+      // First create the request
+      const { data: svcData, error: svcError } = await supabase
+        .from("services")
+        .select("*")
+        .eq("key", "fuel_delivery")
+        .single();
+
+      if (svcError || !svcData) {
+        throw new Error("Service unavailable. Please try again.");
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: requestData, error: requestError } = await supabase
+        .from("requests")
+        .insert([
+          {
+            user_id: user?.id || null,
+            service_id: svcData.id,
+            vehicle_type: vehicle,
+            description: `${quantity}L ${fuelType} delivery for ${vehicle}`,
+            lat: parseFloat(lat),
+            lon: parseFloat(lon),
+            address,
+            status: "pending",
+            estimated_price: cost,
+            price: cost,
+          },
+        ])
+        .select()
+        .single();
+
+      if (requestError) {
+        throw new Error("Error creating request: " + requestError.message);
+      }
+
+      // Create fuel_requests entry
+      const fuelPrice = fuelPrices[fuelType as keyof typeof fuelPrices];
+      const { error: fuelRequestError } = await supabase.from("fuel_requests").insert([
+        {
+          request_id: requestData.id,
+          fuel_type: fuelType,
+          litres: parseFloat(quantity),
+          price_per_litre: fuelPrice,
+          delivered: false,
+        },
+      ]);
+
+      if (fuelRequestError) {
+        throw new Error("Error logging fuel request: " + fuelRequestError.message);
+      }
+
+      // Then trigger payment
       const orderResponse = await fetch("/api/payment/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,177 +226,174 @@ export default function PetrolPage() {
         animate={{ opacity: 1, y: 0 }}
         className="max-w-xl mx-auto p-6 backdrop-blur-xl bg-white/40 shadow-2xl rounded-2xl border border-white/30"
       >
-      <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
-        Fuel Delivery Service
-      </h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">
+          Fuel Delivery Service
+        </h2>
 
-      <p className="text-gray-600 text-center mb-6">
-        Emergency petrol & diesel delivery to your location.
-      </p>
+        <p className="text-gray-600 text-center mb-6">
+          Emergency petrol & diesel delivery to your location.
+        </p>
 
-      {/* Fuel Type Selection */}
-      <div className="flex gap-3 mb-6">
-        {fuelTypes.map((fuel) => {
-          const Icon = fuel.icon;
-          return (
-            <button
-              key={fuel.value}
-              onClick={() => handleFuelTypeChange(fuel.value)}
-              className={`flex-1 flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
-                fuelType === fuel.value
+        {/* Fuel Type Selection */}
+        <div className="flex gap-3 mb-6">
+          {fuelTypes.map((fuel) => {
+            const Icon = fuel.icon;
+            return (
+              <button
+                key={fuel.value}
+                onClick={() => handleFuelTypeChange(fuel.value)}
+                className={`flex-1 flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all ${fuelType === fuel.value
                   ? "bg-orange-600 text-white shadow-lg"
                   : "bg-white/70 backdrop-blur border-gray-300"
-              }`}
-            >
-              <Icon size={20} />
-              <span>{fuel.label}</span>
-              <span className="text-xs font-bold">₹{fuelPrices[fuel.value as keyof typeof fuelPrices]}/L</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Quantity Selection */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Quantity (Liters)</label>
-        <div className="grid grid-cols-4 gap-2">
-          {quantities.map((q) => {
-            const quantityPrice = getQuantityPrice(q, fuelType);
-            const totalCost = calculateCost(q, fuelType);
-            return (
-              <div key={q} className="relative">
-                <button
-                  onClick={() => handleQuantityChange(q)}
-                  className={`w-full p-2 rounded-xl border transition-all flex flex-col items-center ${
-                    quantity === q
-                      ? "bg-blue-600 text-white shadow-lg"
-                      : "bg-white/70 backdrop-blur border-gray-300"
                   }`}
-                >
-                  <span>{q}L</span>
-                  <span className="text-xs">₹{quantityPrice}</span>
-                </button>
-                {lat && lon && (
-                  <button
-                    onClick={() => {
-                      setQuantity(q);
-                      setCost(totalCost);
-                      setTimeout(() => handlePayNow(), 100);
-                    }}
-                    className="w-full mt-1 bg-green-600 text-white py-1 rounded-lg text-xs font-semibold hover:bg-green-700 transition"
-                    disabled={loading}
-                  >
-                    Pay ₹{totalCost}
-                  </button>
-                )}
-              </div>
+              >
+                <Icon size={20} />
+                <span>{fuel.label}</span>
+                <span className="text-xs font-bold">₹{fuelPrices[fuel.value as keyof typeof fuelPrices]}/L</span>
+              </button>
             );
           })}
         </div>
-      </div>
 
-      {/* Vehicle Selection */}
-      <div className="flex gap-3 mb-6">
-        {getAvailableVehicles(fuelType).map((v) => {
-          const Icon = v.icon;
-          return (
-            <button
-              key={v.value}
-              onClick={() => setVehicle(v.value)}
-              className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${
-                vehicle === v.value
+        {/* Quantity Selection */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Quantity (Liters)</label>
+          <div className="grid grid-cols-4 gap-2">
+            {quantities.map((q) => {
+              const quantityPrice = getQuantityPrice(q, fuelType);
+              const totalCost = calculateCost(q, fuelType);
+              return (
+                <div key={q} className="relative">
+                  <button
+                    onClick={() => handleQuantityChange(q)}
+                    className={`w-full p-2 rounded-xl border transition-all flex flex-col items-center ${quantity === q
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "bg-white/70 backdrop-blur border-gray-300"
+                      }`}
+                  >
+                    <span>{q}L</span>
+                    <span className="text-xs">₹{quantityPrice}</span>
+                  </button>
+                  {lat && lon && (
+                    <button
+                      onClick={() => {
+                        setQuantity(q);
+                        setCost(totalCost);
+                        setTimeout(() => handlePayNow(), 100);
+                      }}
+                      className="w-full mt-1 bg-green-600 text-white py-1 rounded-lg text-xs font-semibold hover:bg-green-700 transition"
+                      disabled={loading}
+                    >
+                      Pay ₹{totalCost}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Vehicle Selection */}
+        <div className="flex gap-3 mb-6">
+          {getAvailableVehicles(fuelType).map((v) => {
+            const Icon = v.icon;
+            return (
+              <button
+                key={v.value}
+                onClick={() => setVehicle(v.value)}
+                className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border transition-all ${vehicle === v.value
                   ? "bg-green-600 text-white shadow-lg"
                   : "bg-white/70 backdrop-blur border-gray-300"
-              }`}
-            >
-              <Icon size={20} />
-              {v.label}
-            </button>
-          );
-        })}
-      </div>
+                  }`}
+              >
+                <Icon size={20} />
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Location */}
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={useMyLocation}
-          className="w-full bg-black text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-        >
-          <MapPin size={20} />
-          Use My Location
-        </button>
+        {/* Location */}
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={useMyLocation}
+            className="w-full bg-black text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+          >
+            <MapPin size={20} />
+            Use My Location
+          </button>
 
-        {lat && lon && (
-          <Map lat={parseFloat(lat)} lon={parseFloat(lon)} />
-        )}
-      </div>
+          {lat && lon && (
+            <Map lat={parseFloat(lat)} lon={parseFloat(lon)} />
+          )}
+        </div>
 
-      {/* Address */}
-      <input
-        className="w-full mt-4 p-3 rounded-xl border bg-white/60 backdrop-blur"
-        placeholder="Address or nearest landmark"
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-      />
+        {/* Address */}
+        <input
+          className="w-full mt-4 p-3 rounded-xl border bg-white/60 backdrop-blur"
+          placeholder="Address or nearest landmark"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
 
-      {/* Total Amount Display */}
-      {cost > 0 && (
-        <div className="mt-4 p-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl border-2 border-orange-200">
-          <div className="text-center">
-            <p className="text-sm text-gray-600 mb-2">Total Amount to Pay</p>
-            <p className="text-4xl font-bold text-orange-600 mb-2">₹{cost}</p>
-            <p className="text-xs text-gray-500">
-              {quantity}L {fuelType.charAt(0).toUpperCase() + fuelType.slice(1)} for {vehicles.find(v => v.value === vehicle)?.label}
-            </p>
-            <div className="mt-3 pt-3 border-t border-orange-200">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Fuel Cost:</span>
-                <span>₹{parseInt(quantity) * fuelPrices[fuelType as keyof typeof fuelPrices]}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Delivery Fee:</span>
-                <span>₹50</span>
+        {/* Total Amount Display */}
+        {cost > 0 && (
+          <div className="mt-4 p-6 bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl border-2 border-orange-200">
+            <div className="text-center">
+              <p className="text-sm text-gray-600 mb-2">Total Amount to Pay</p>
+              <p className="text-4xl font-bold text-orange-600 mb-2">₹{cost}</p>
+              <p className="text-xs text-gray-500">
+                {quantity}L {fuelType.charAt(0).toUpperCase() + fuelType.slice(1)} for {vehicles.find(v => v.value === vehicle)?.label}
+              </p>
+              <div className="mt-3 pt-3 border-t border-orange-200">
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Fuel Cost:</span>
+                  <span>₹{parseInt(quantity) * fuelPrices[fuelType as keyof typeof fuelPrices]}</span>
+                </div>
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>Delivery Fee:</span>
+                  <span>₹50</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Payment Button - Show after request is created */}
-      {requestId && cost > 0 && (
-        <div className="mt-4">
-          <PaymentButton
-            amount={cost}
-            requestId={requestId}
-            description={`${quantity}L ${fuelType} delivery`}
-            onSuccess={handlePaymentSuccess}
-            onError={handlePaymentError}
-            userEmail={user?.email}
-            userName={user?.user_metadata?.name}
-          />
-        </div>
-      )}
+        {/* Payment Button - Show after request is created */}
+        {requestId && cost > 0 && (
+          <div className="mt-4">
+            <PaymentButton
+              amount={cost}
+              requestId={requestId}
+              description={`${quantity}L ${fuelType} delivery`}
+              onSuccess={handlePaymentSuccess}
+              onError={handlePaymentError}
+              userEmail={user?.email}
+              userName={user?.user_metadata?.name}
+            />
+          </div>
+        )}
 
-      {/* Submit Buttons */}
-      {!requestId && cost > 0 && lat && lon && (
-        <div className="mt-4 space-y-3">
-          {/* Pay Now Button - Primary */}
-          <button
-            onClick={handlePayNow}
-            className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-all"
-            disabled={loading}
-          >
-            {loading ? "Processing Payment..." : `Pay Now - ₹${cost}`}
-          </button>
-        </div>
-      )}
+        {/* Submit Buttons */}
+        {!requestId && cost > 0 && lat && lon && (
+          <div className="mt-4 space-y-3">
+            {/* Pay Now Button - Primary */}
+            <button
+              onClick={handlePayNow}
+              className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-all"
+              disabled={loading}
+            >
+              {loading ? "Processing Payment..." : `Pay Now - ₹${cost}`}
+            </button>
+          </div>
+        )}
 
-      {msg && (
-        <p className="mt-4 text-center text-green-700 font-medium">
-          {msg}
-        </p>
-      )}
+        {msg && (
+          <p className="mt-4 text-center text-green-700 font-medium">
+            {msg}
+          </p>
+        )}
       </motion.div>
     </AuthGuard>
   );

@@ -100,6 +100,16 @@ Before going live:
 - [ ] Configure payment success/failure redirect URLs
 - [ ] Enable email notifications in Razorpay Dashboard
 
+## Vercel Deployment
+
+When deploying to Vercel, you must add the environment variables in the Vercel Dashboard:
+
+1. Go to your Vercel Project Settings > **Environment Variables**
+2. Add the following variables:
+   - `NEXT_PUBLIC_RAZORPAY_KEY_ID`: Your Key ID
+   - `RAZORPAY_KEY_SECRET`: Your Key Secret
+3. redeploy your project for the changes to take effect.
+
 ## Webhook Setup (Optional)
 
 For real-time payment notifications:
