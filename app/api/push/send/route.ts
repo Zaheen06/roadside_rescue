@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import supabaseAdmin from "@/lib/supabaseAdmin";
 import webpush from "web-push";
 
-webpush.setVapidDetails(
-    process.env.VAPID_EMAIL || "mailto:admin@roadsiderescue.com",
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "",
-    process.env.VAPID_PRIVATE_KEY || ""
-);
-
 export async function POST(req: Request) {
     try {
+        // Initialize within handler so missing env variables don't crash Next.js build
+        webpush.setVapidDetails(
+            process.env.VAPID_EMAIL || "mailto:admin@roadsiderescue.com",
+            process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "dummy",
+            process.env.VAPID_PRIVATE_KEY || "dummy"
+        );
+
         const { userId, title, body, url } = await req.json();
 
         if (!userId || !title || !body) {
