@@ -104,8 +104,8 @@ export default function Dashboard() {
           {/* ── Header ── */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-[40px] font-extrabold text-white leading-tight">My Requests</h1>
-              <p className="text-white/70 text-sm mt-1">Track your roadside assistance history</p>
+              <h1 className="text-[40px] font-extrabold text-gray-900 leading-tight">My Requests</h1>
+              <p className="text-gray-500 text-sm mt-1">Track your roadside assistance history</p>
             </div>
             <Link href="/request">
               <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="btn-primary">
@@ -135,7 +135,7 @@ export default function Dashboard() {
           {/* ── Loading ── */}
           {loading && (
             <div className="flex items-center justify-center py-16">
-              <Loader className="animate-spin text-white" size={32} />
+              <Loader className="animate-spin text-blue-600" size={32} />
             </div>
           )}
 
@@ -156,7 +156,7 @@ export default function Dashboard() {
           {/* ── Active Requests ── */}
           {!loading && activeRequests.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-[28px] font-bold text-white mb-4">Active</h2>
+              <h2 className="text-[28px] font-bold text-gray-900 mb-4">Active</h2>
               <div className="space-y-4">
                 {activeRequests.map((req, i) => (
                   <RequestCard key={req.id} req={req} index={i} user={user} onPaySuccess={() => fetchRequests(user?.id)} />
@@ -168,7 +168,7 @@ export default function Dashboard() {
           {/* ── Past Requests ── */}
           {!loading && pastRequests.length > 0 && (
             <div>
-              <h2 className="text-[28px] font-bold text-white mb-4">History</h2>
+              <h2 className="text-[28px] font-bold text-gray-900 mb-4">History</h2>
               <div className="space-y-3">
                 {pastRequests.map((req, i) => (
                   <RequestCard key={req.id} req={req} index={i} user={user} onPaySuccess={() => fetchRequests(user?.id)} compact />

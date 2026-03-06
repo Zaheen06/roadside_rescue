@@ -1,14 +1,67 @@
 
 > roadside-rescue@0.1.0 dev
-> next dev --turbopack
+> concurrently "npm run dev:next" "npm run dev:tracking"
 
-   ▲ Next.js 15.5.7 (Turbopack)
-   - Local:        http://localhost:3000
-   - Network:      http://192.168.0.196:3000
-   - Environments: .env.local
-
- ✓ Starting...
- ✓ Ready in 1512ms
- ○ Compiling /request ...
- ✓ Compiled /request in 4.8s
- GET /request 200 in 5383ms
+[1] 
+[1] > roadside-rescue@0.1.0 dev:tracking
+[1] > cd tracking-server && npm install && npm run dev
+[1] 
+[0] 
+[0] > roadside-rescue@0.1.0 dev:next
+[0] > next dev --turbopack
+[0] 
+[1] 
+[1] up to date, audited 121 packages in 2s
+[1] 
+[1] 20 packages are looking for funding
+[1]   run `npm fund` for details
+[1] 
+[1] 2 vulnerabilities (1 low, 1 high)
+[1] 
+[1] To address all issues, run:
+[1]   npm audit fix
+[1] 
+[1] Run `npm audit` for details.
+[0]  ⚠ Port 3000 is in use by process 31995, using available port 3001 instead.
+[0]    ▲ Next.js 15.5.7 (Turbopack)
+[0]    - Local:        http://localhost:3001
+[0]    - Network:      http://192.168.0.116:3001
+[0]    - Environments: .env.local
+[0] 
+[0]  ✓ Starting...
+[1] 
+[1] > tracking-server@1.0.0 dev
+[1] > nodemon server.js
+[1] 
+[1] [33m[nodemon] 3.1.11[39m
+[1] [33m[nodemon] to restart at any time, enter `rs`[39m
+[1] [33m[nodemon] watching path(s): *.*[39m
+[1] [33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[1] [32m[nodemon] starting `node server.js`[39m
+[1] node:events:486
+[1]       throw er; // Unhandled 'error' event
+[1]       ^
+[1] 
+[1] Error: listen EADDRINUSE: address already in use :::4000
+[1]     at Server.setupListenHandle [as _listen2] (node:net:2016:16)
+[1]     at listenInCluster (node:net:2073:12)
+[1]     at Server.listen (node:net:2178:7)
+[1]     at Object.<anonymous> (/Users/mohammadzaheen/Documents/my_projects/roadside_rescue/tracking-server/server.js:70:8)
+[1]     at Module._compile (node:internal/modules/cjs/loader:1811:14)
+[1]     at Module._extensions..js (node:internal/modules/cjs/loader:1942:10)
+[1]     at Module.load (node:internal/modules/cjs/loader:1532:32)
+[1]     at Module._load (node:internal/modules/cjs/loader:1334:12)
+[1]     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+[1]     at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+[1] Emitted 'error' event on Server instance at:
+[1]     at emitErrorNT (node:net:2052:8)
+[1]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[1]   code: 'EADDRINUSE',
+[1]   errno: -48,
+[1]   syscall: 'listen',
+[1]   address: '::',
+[1]   port: 4000
+[1] }
+[1] 
+[1] Node.js v25.6.1
+[1] [31m[nodemon] app crashed - waiting for file changes before starting...[39m
