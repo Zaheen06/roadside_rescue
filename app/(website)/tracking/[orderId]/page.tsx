@@ -5,7 +5,8 @@ import { socket } from "@/lib/socket";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Package } from "lucide-react";
+import { Clock, MapPin, Package, CheckCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Dynamically import map to avoid SSR issues with Leaflet
 const TrackingMap = dynamic(() => import("@/components/TrackingMap"), {
@@ -62,7 +63,34 @@ export default function TrackingPage({ params }: PageProps) {
     }, [orderId]);
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+        <div className="min-h-screen bg-slate-50 p-4 md:p-8 relative">
+            <AnimatePresence>
+                {status === "Delivered" && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ y: 50, scale: 0.9 }}
+                            animate={{ y: 0, scale: 1 }}
+                            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-4"
+                        >
+                            <div className="mx-auto w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
+                                <CheckCircle size={48} />
+                            </div>
+                            <h2 className="text-3xl font-bold text-slate-900">Order Completed!</h2>
+                            <p className="text-slate-600 text-lg">Your roadside rescue request has been successfully completed by the technician.</p>
+                            <button
+                                onClick={() => window.location.href = '/'}
+                                className="mt-8 w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg transition-all"
+                            >
+                                Back to Home
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* Header Section */}

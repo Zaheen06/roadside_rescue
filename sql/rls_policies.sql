@@ -7,6 +7,7 @@ ALTER TABLE technicians ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fuel_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- REQUESTS TABLE POLICIES
 -- Users can view their own requests
@@ -120,3 +121,18 @@ CREATE POLICY "Users can create reviews for their requests"
 
 -- SERVICES TABLE - No RLS needed (public catalog)
 -- Services are public and don't need RLS
+
+-- PUSH_SUBSCRIPTIONS TABLE POLICIES
+-- Users can view their own push subscriptions
+CREATE POLICY "Users can view their own push subscriptions"
+  ON push_subscriptions FOR SELECT
+  USING (auth.uid()::text = user_id OR user_id = 'anonymous');
+
+-- Users can insert/update their own push subscriptions
+CREATE POLICY "Users can insert their own push subscriptions"
+  ON push_subscriptions FOR INSERT
+  WITH CHECK (auth.uid()::text = user_id OR user_id = 'anonymous');
+
+CREATE POLICY "Users can update their own push subscriptions"
+  ON push_subscriptions FOR UPDATE
+  USING (auth.uid()::text = user_id OR user_id = 'anonymous');

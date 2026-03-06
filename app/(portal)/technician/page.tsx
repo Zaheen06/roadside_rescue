@@ -254,8 +254,10 @@ export default function TechnicianDashboard() {
     // Stop tracking if running
     if (isTracking) {
       stopTracking();
-      socket.emit("order_delivered", currentRequest.id);
     }
+
+    // Always notify tracking server that it's delivered
+    socket.emit("order_delivered", currentRequest?.id);
 
     if (!currentRequest || !technician) return;
 

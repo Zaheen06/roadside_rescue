@@ -90,3 +90,11 @@ ALTER TABLE technicians
 ADD COLUMN current_lat numeric,
 ADD COLUMN current_lon numeric,
 ADD COLUMN tech_status text DEFAULT 'idle';
+
+-- 8) push_subscriptions
+create table if not exists push_subscriptions (
+  id uuid default gen_random_uuid() primary key,
+  user_id text unique not null,
+  subscription jsonb not null,
+  created_at timestamptz default now()
+);

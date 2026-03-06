@@ -54,12 +54,12 @@ io.on("connection", (socket) => {
     });
 
     socket.on("order_delivered", (orderId) => {
-        const orderData = orders.get(orderId);
-        if (orderData) {
-            orderData.status = 'delivered';
-            orders.set(orderId, orderData);
-            io.to(orderId).emit("status_update", { status: 'delivered' });
-        }
+        const orderData = orders.get(orderId) || { orderId };
+        orderData.status = 'delivered';
+        orders.set(orderId, orderData);
+
+        io.to(orderId).emit("status_update", { status: 'delivered' });
+        console.log(`Order ${orderId} delivered`);
     });
 
     socket.on("disconnect", () => {

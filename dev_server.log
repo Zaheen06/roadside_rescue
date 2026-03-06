@@ -65,3 +65,49 @@
 [1] 
 [1] Node.js v25.6.1
 [1] [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[0]  ✓ Ready in 4.2s
+[1] [32m[nodemon] restarting due to changes...[39m
+[1] [32m[nodemon] starting `node server.js`[39m
+[1] TRACKING SERVER RUNNING ON PORT 4000
+[1] User Connected: uDLBAfG_APOEjawgAAAB
+[1] [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[1] [32m[nodemon] restarting due to changes...[39m
+[1] [32m[nodemon] starting `node server.js`[39m
+[1] TRACKING SERVER RUNNING ON PORT 4000
+[1] User Connected: Axp0wYV3pi6B9teuAAAB
+[1] [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[1] [32m[nodemon] restarting due to changes...[39m
+[1] [32m[nodemon] starting `node server.js`[39m
+[1] TRACKING SERVER RUNNING ON PORT 4000
+[1] User Connected: AYvNy-6VQmmrt1P4AAAB
+[1] [32m[nodemon] restarting child process[39m
+[1] [32m[nodemon] starting `node server.js`[39m
+[0] npm run dev:next exited with code SIGHUP
+[1] node:events:486
+[1]       throw er; // Unhandled 'error' event
+[1]       ^
+[1] 
+[1] Error: listen EADDRINUSE: address already in use :::4000
+[1]     at Server.setupListenHandle [as _listen2] (node:net:2016:16)
+[1]     at listenInCluster (node:net:2073:12)
+[1]     at Server.listen (node:net:2178:7)
+[1]     at Object.<anonymous> (/Users/mohammadzaheen/Documents/my_projects/roadside_rescue/tracking-server/server.js:70:8)
+[1]     at Module._compile (node:internal/modules/cjs/loader:1811:14)
+[1]     at Module._extensions..js (node:internal/modules/cjs/loader:1942:10)
+[1]     at Module.load (node:internal/modules/cjs/loader:1532:32)
+[1]     at Module._load (node:internal/modules/cjs/loader:1334:12)
+[1]     at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+[1]     at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+[1] Emitted 'error' event on Server instance at:
+[1]     at emitErrorNT (node:net:2052:8)
+[1]     at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+[1]   code: 'EADDRINUSE',
+[1]   errno: -48,
+[1]   syscall: 'listen',
+[1]   address: '::',
+[1]   port: 4000
+[1] }
+[1] 
+[1] Node.js v25.6.1
+[1] [31m[nodemon] app crashed - waiting for file changes before starting...[39m
+[1] npm run dev:tracking exited with code SIGHUP

@@ -29,7 +29,7 @@ function getCost(serviceValue: string, vehicleType: string): number {
   return s?.costs[vehicleType as keyof typeof s.costs] ?? 0;
 }
 
-const STEPS = ["Service", "Vehicle", "Location", "Confirm"];
+const STEPS = ["Vehicle", "Service", "Location", "Confirm"];
 
 export default function RequestForm() {
   const [step, setStep] = useState(0);
@@ -66,8 +66,8 @@ export default function RequestForm() {
   }
 
   const canProceed = () => {
-    if (step === 0) return !!service;
-    if (step === 1) return !!vehicle;
+    if (step === 0) return !!vehicle;
+    if (step === 1) return !!service;
     if (step === 2) return !!lat && !!lon;
     return true;
   };
@@ -128,7 +128,30 @@ export default function RequestForm() {
   // ── Step Panels ──────────────────────────────────────────
   const stepContent = [
 
-    // STEP 0: Select Service
+    // STEP 0: Select Vehicle
+    <div key="vehicle" className="space-y-3">
+      <p className="text-sm text-gray-500 mb-4">What type of vehicle?</p>
+      {VEHICLES.map((v) => {
+        const Icon = v.icon;
+        const active = vehicle === v.value;
+        return (
+          <button
+            key={v.value}
+            onClick={() => setVehicle(v.value)}
+            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${active ? "border-blue-600 bg-blue-50" : "border-gray-100 bg-white hover:border-blue-200"
+              }`}
+          >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${active ? "bg-blue-600" : "bg-gray-100"}`}>
+              <Icon size={20} className={active ? "text-white" : "text-gray-500"} />
+            </div>
+            <p className={`font-semibold text-sm flex-1 text-left ${active ? "text-blue-700" : "text-gray-800"}`}>{v.label}</p>
+            {active && <CheckCircle size={18} className="text-blue-600 shrink-0" />}
+          </button>
+        );
+      })}
+    </div>,
+
+    // STEP 1: Select Service
     <div key="service" className="space-y-3">
       <p className="text-sm text-gray-500 mb-4">What do you need help with?</p>
       {availableServices.map((s) => {
@@ -151,29 +174,6 @@ export default function RequestForm() {
             <div className={`font-bold text-sm ${active ? "text-blue-700" : "text-gray-400"}`}>
               ₹{price}
             </div>
-            {active && <CheckCircle size={18} className="text-blue-600 shrink-0" />}
-          </button>
-        );
-      })}
-    </div>,
-
-    // STEP 1: Select Vehicle
-    <div key="vehicle" className="space-y-3">
-      <p className="text-sm text-gray-500 mb-4">What type of vehicle?</p>
-      {VEHICLES.map((v) => {
-        const Icon = v.icon;
-        const active = vehicle === v.value;
-        return (
-          <button
-            key={v.value}
-            onClick={() => setVehicle(v.value)}
-            className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${active ? "border-blue-600 bg-blue-50" : "border-gray-100 bg-white hover:border-blue-200"
-              }`}
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${active ? "bg-blue-600" : "bg-gray-100"}`}>
-              <Icon size={20} className={active ? "text-white" : "text-gray-500"} />
-            </div>
-            <p className={`font-semibold text-sm flex-1 text-left ${active ? "text-blue-700" : "text-gray-800"}`}>{v.label}</p>
             {active && <CheckCircle size={18} className="text-blue-600 shrink-0" />}
           </button>
         );
