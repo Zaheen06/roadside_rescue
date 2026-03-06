@@ -1,0 +1,14 @@
+
+> roadside-rescue@0.1.0 dev
+> next dev --turbopack
+
+   ▲ Next.js 15.5.7 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.196:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1512ms
+ ○ Compiling /request ...
+ ✓ Compiled /request in 4.8s
+ GET /request 200 in 5383ms

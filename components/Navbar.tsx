@@ -2,25 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Car, User, LogOut, Menu } from "lucide-react";
+import { Car, User, LogOut, Menu, X } from "lucide-react";
+import Link from "next/link";
+
+const NAV_LINKS = [
+  { href: "/landing", label: "Home" },
+  { href: "/request", label: "Services" },
+  { href: "/dashboard", label: "My Requests", requiresAuth: true },
+  { href: "/tracking", label: "Track" },
+  { href: "/petrol", label: "Fuel" },
+];
 
 export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-
-    getUser();
-
-    const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((event, session) => {
-        setUser(session?.user || null);
-      });
-
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_, session) => setUser(session?.user || null)
+    );
     return () => subscription.unsubscribe();
   }, []);
 
@@ -30,145 +31,158 @@ export default function Navbar() {
   };
 
   return (
-    <header className="backdrop-blur-xl bg-white/60 border-b border-white/20 shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 py-3">
+    <header
+      className="sticky top-0 z-50"
+      style={{
+        background: "rgba(255,255,255,0.95)",
+        borderBottom: "1px solid #E2E8F0",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-5">
+        <div className="flex items-center justify-between h-16 gap-6">
 
-        {/* NAVBAR */}
-        <div className="flex items-center justify-between w-full">
-
-          {/* LEFT SIDE (Logo + Title) */}
-          <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-md">
-              <Car className="text-white" size={22} />
+          {/* ── Logo ── */}
+          <Link href="/landing" className="flex items-center gap-2.5 shrink-0">
+            <div className="p-2 rounded-xl" style={{ background: "#2563EB" }}>
+              <Car className="text-white" size={18} />
             </div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">
-              Roadside Rescue
-            </h1>
-          </div>
+            <span className="text-base font-bold" style={{ color: "#0F172A" }}>Roadside Rescue</span>
+          </Link>
 
-          {/* RIGHT SIDE DESKTOP */}
-          <div className="hidden md:flex items-center gap-6">
+          {/* ── Desktop Nav ── */}
+          <nav className="hidden md:flex items-center gap-1 flex-1">
+            {NAV_LINKS.map((link) => {
+              if (link.requiresAuth && !user) return null;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                  style={{ color: "#475569" }}
+                  onMouseEnter={e => {
+                    (e.target as HTMLElement).style.color = "#2563EB";
+                    (e.target as HTMLElement).style.background = "#EFF6FF";
+                  }}
+                  onMouseLeave={e => {
+                    (e.target as HTMLElement).style.color = "#475569";
+                    (e.target as HTMLElement).style.background = "transparent";
+                  }}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
 
-            <a href="/landing" className="text-gray-700 hover:text-blue-600 font-medium transition">
-              Home
-            </a>
+          {/* ── Right Side ── */}
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            {/* Technician Portal — separated */}
+            <Link
+              href="/technician"
+              className="text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+              style={{ color: "#2563EB", background: "#EFF6FF" }}
+            >
+              Technician Portal
+            </Link>
+
+            <div style={{ width: 1, height: 24, background: "#E2E8F0" }} />
 
             {user ? (
-              <>
-                <a href="/dashboard" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Dashboard
-                </a>
-                <a href="/request" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Services
-                </a>
-                <a href="/payment" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Payment
-                </a>
-                <a href="/technician" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Technician
-                </a>
-                <a href="/tracking" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Track Request
-                </a>
-                <a href="/petrol" className="text-gray-700 hover:text-blue-600 font-medium transition">
-                  Petrol
-                </a>
-              </>
-            ) : (
-              <>
-                <span className="text-gray-400 font-medium cursor-not-allowed">
-                  Dashboard
-                </span>
-                <span className="text-gray-400 font-medium cursor-not-allowed">
-                  Services
-                </span>
-                <span className="text-gray-400 font-medium cursor-not-allowed">
-                  Petrol
-                </span>
-              </>
-            )}
-
-            {/* User Info */}
-            {user ? (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow border border-gray-200">
-                  <User size={16} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2 rounded-full px-3 py-1.5"
+                  style={{ background: "#F8FAFC", border: "1px solid #E2E8F0" }}
+                >
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: "#2563EB" }}>
+                    {(user.user_metadata?.name || user.email || "?")[0].toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium max-w-[120px] truncate" style={{ color: "#0F172A" }}>
                     {user.user_metadata?.name || user.email?.split("@")[0]}
                   </span>
                 </div>
-
                 <button
                   onClick={handleSignOut}
-                  className="p-2 rounded-full hover:bg-red-50 text-gray-600 hover:text-red-600 transition"
+                  title="Sign out"
+                  className="p-2 rounded-full transition"
+                  style={{ color: "#94A3B8" }}
+                  onMouseEnter={e => { (e.currentTarget).style.color = "#DC2626"; (e.currentTarget).style.background = "#FEE2E2"; }}
+                  onMouseLeave={e => { (e.currentTarget).style.color = "#94A3B8"; (e.currentTarget).style.background = "transparent"; }}
                 >
-                  <LogOut size={18} />
+                  <LogOut size={16} />
                 </button>
               </div>
             ) : (
-              <a
-                href="/auth"
-                className="px-5 py-2 bg-blue-600 text-white rounded-full shadow-md font-medium hover:bg-blue-700 transition"
-              >
+              <Link href="/auth" className="btn-primary text-sm py-2 px-5">
                 Login
-              </a>
+              </Link>
             )}
           </div>
 
-          {/* MOBILE MENU BUTTON */}
+          {/* ── Mobile Toggle ── */}
           <button
-            className="md:hidden p-2 rounded-lg hover:bg-gray-200 transition"
+            className="md:hidden p-2 rounded-lg transition"
+            style={{ color: "#475569" }}
             onClick={() => setOpen(!open)}
           >
-            <Menu size={22} />
+            {open ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
 
-        {/* MOBILE DROPDOWN */}
+        {/* ── Mobile Menu ── */}
         {open && (
-          <div className="md:hidden mt-3 flex flex-col gap-4 bg-white/90 backdrop-blur-xl p-4 rounded-xl shadow-lg">
-            <a href="/landing" className="text-gray-700 font-medium">Home</a>
-            {user ? (
-              <>
-                <a href="/dashboard" className="text-gray-700 font-medium">Dashboard</a>
-                <a href="/request" className="text-gray-700 font-medium">Services</a>
-                <a href="/payment" className="text-gray-700 font-medium">Payment</a>
-                <a href="/technician" className="text-gray-700 font-medium">Technician</a>
-                <a href="/tracking" className="text-gray-700 font-medium">Track Request</a>
-                <a href="/petrol" className="text-gray-700 font-medium">Petrol</a>
-              </>
-            ) : (
-              <>
-                <span className="text-gray-400 font-medium cursor-not-allowed">Dashboard</span>
-                <span className="text-gray-400 font-medium cursor-not-allowed">Services</span>
-                <span className="text-gray-400 font-medium cursor-not-allowed">Petrol</span>
-              </>
-            )}
-
-            {user ? (
-              <>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100">
-                  <User size={16} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {user.user_metadata?.name || user.email?.split("@")[0]}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleSignOut}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium"
+          <div className="md:hidden py-4 border-t flex flex-col gap-1 animate-fade-in" style={{ borderColor: "#E2E8F0" }}>
+            {NAV_LINKS.map((link) => {
+              if (link.requiresAuth && !user) return null;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="px-4 py-2.5 text-sm font-medium rounded-lg"
+                  style={{ color: "#475569" }}
                 >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <a
-                href="/auth"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium"
+                  {link.label}
+                </Link>
+              );
+            })}
+
+            <div style={{ borderTop: "1px solid #E2E8F0", marginTop: 8, paddingTop: 8 }}>
+              <Link
+                href="/technician"
+                onClick={() => setOpen(false)}
+                className="block px-4 py-2.5 text-sm font-bold rounded-lg"
+                style={{ color: "#2563EB", background: "#EFF6FF" }}
               >
-                Login
-              </a>
-            )}
+                Technician Portal
+              </Link>
+            </div>
+
+            <div style={{ borderTop: "1px solid #E2E8F0", marginTop: 8, paddingTop: 8 }} className="flex flex-col gap-2">
+              {user ? (
+                <>
+                  <p className="px-4 text-sm font-medium" style={{ color: "#475569" }}>
+                    👤 {user.user_metadata?.name || user.email?.split("@")[0]}
+                  </p>
+                  <button
+                    onClick={handleSignOut}
+                    className="mx-4 py-2 text-sm font-semibold rounded-lg"
+                    style={{ color: "#DC2626", background: "#FEE2E2" }}
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/auth"
+                  onClick={() => setOpen(false)}
+                  className="mx-4 py-2.5 text-center text-sm font-semibold text-white rounded-lg"
+                  style={{ background: "#2563EB" }}
+                >
+                  Login
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </div>

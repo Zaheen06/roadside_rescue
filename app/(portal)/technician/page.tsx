@@ -24,15 +24,15 @@ export default function TechnicianDashboard() {
 
   useEffect(() => {
     checkTechnicianAuth();
-    
+
     // Socket connection for tracking
     if (socket.connected) {
       setTrackingConnected(true);
     }
-    
+
     socket.on("connect", () => setTrackingConnected(true));
     socket.on("disconnect", () => setTrackingConnected(false));
-    
+
     return () => {
       socket.off("connect");
       socket.off("disconnect");
@@ -158,39 +158,6 @@ export default function TechnicianDashboard() {
     fetchAvailableRequests();
   }
 
-  // Mark as Arrived
-  async function markArrived() {
-    if (!currentRequest || !technician) return;
-
-    await supabase
-      .from("requests")
-      .update({ status: "in_progress" })
-      .eq("id", currentRequest.id);
-
-    alert("Marked as Arrived!");
-    fetchAssignedRequest(technician.id);
-  }
-
-  // Mark as Completed
-  async function markCompleted() {
-    if (!currentRequest || !technician) return;
-
-    await supabase
-      .from("requests")
-      .update({ status: "completed" })
-      .eq("id", currentRequest.id);
-
-    await supabase
-      .from("technicians")
-      .update({ is_available: true })
-      .eq("id", technician.id);
-
-    setIsAvailable(true);
-    setCurrentRequest(null);
-    fetchAvailableRequests();
-    alert("Work Completed!");
-  }
-
   async function toggleAvailability() {
     if (!technician) return;
 
@@ -244,7 +211,7 @@ export default function TechnicianDashboard() {
 
         socket.emit("location_update", payload);
         addTrackingLog(`Sent: ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
-        
+
         // Update technician location in database
         await supabase
           .from("technicians")
@@ -331,17 +298,16 @@ export default function TechnicianDashboard() {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2">Technician Dashboard</h1>
-              <p className="text-white/80">{technician?.name}</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Technician Dashboard</h1>
+              <p className="text-gray-500">{technician?.name}</p>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={toggleAvailability}
-                className={`px-4 py-2 rounded-xl font-semibold transition ${
-                  isAvailable
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-gray-600 text-white hover:bg-gray-700"
-                }`}
+                className={`px-4 py-2 rounded-xl font-semibold transition ${isAvailable
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-gray-600 text-white hover:bg-gray-700"
+                  }`}
               >
                 {isAvailable ? "Available" : "Unavailable"}
               </button>
@@ -359,7 +325,7 @@ export default function TechnicianDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-6 mb-6"
+            className="card mb-6"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Current Request</h2>
             <div className="space-y-4">
@@ -390,7 +356,7 @@ export default function TechnicianDashboard() {
                   <Map lat={currentRequest.lat} lon={currentRequest.lon} />
                 </div>
               )}
-              
+
               {/* Tracking Section */}
               <div className="bg-slate-900 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -398,15 +364,14 @@ export default function TechnicianDashboard() {
                     <MapIcon size={18} />
                     Live Tracking
                   </h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    trackingConnected 
-                      ? "bg-green-500/20 text-green-400" 
-                      : "bg-red-500/20 text-red-400"
-                  }`}>
+                  <span className={`text-xs px-2 py-1 rounded-full ${trackingConnected
+                    ? "bg-green-500/20 text-green-400"
+                    : "bg-red-500/20 text-red-400"
+                    }`}>
                     {trackingConnected ? "Connected" : "Disconnected"}
                   </span>
                 </div>
-                
+
                 <div className="flex gap-2 mb-3">
                   {!isTracking ? (
                     <button
@@ -427,7 +392,7 @@ export default function TechnicianDashboard() {
                     </button>
                   )}
                 </div>
-                
+
                 {/* Tracking Logs */}
                 <div className="bg-slate-800 rounded-lg p-3 text-xs font-mono h-24 overflow-auto">
                   {trackingLogs.length === 0 ? (
@@ -439,7 +404,7 @@ export default function TechnicianDashboard() {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex gap-3">
                 {currentRequest.status === "accepted" && (
                   <button
@@ -458,7 +423,7 @@ export default function TechnicianDashboard() {
                   </button>
                 )}
               </div>
-              
+
               {/* Share tracking link with customer */}
               <a
                 href={`/tracking/${currentRequest.id}`}
@@ -475,7 +440,7 @@ export default function TechnicianDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-6"
+            className="card"
           >
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Available Requests</h2>
             {availableRequests.length === 0 ? (
@@ -522,7 +487,7 @@ export default function TechnicianDashboard() {
         )}
 
         {!currentRequest && !isAvailable && (
-          <div className="glass rounded-2xl p-6 text-center">
+          <div className="card text-center">
             <p className="text-gray-600">You are currently unavailable. Toggle availability to see new requests.</p>
           </div>
         )}

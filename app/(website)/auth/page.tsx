@@ -10,7 +10,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -35,12 +35,12 @@ export default function AuthPage() {
           email: formData.email,
           password: formData.password,
         });
-        
+
         if (error) {
           console.error('Login error:', error);
           throw error;
         }
-        
+
         if (data?.user) {
           setMessage("Login successful! Redirecting...");
           // Wait for session to be established
@@ -57,12 +57,12 @@ export default function AuthPage() {
             emailRedirectTo: `${window.location.origin}/auth`,
           }
         });
-        
+
         if (error) {
           console.error('Signup error:', error);
           throw error;
         }
-        
+
         if (data?.user) {
           // Check if email confirmation is required
           if (data.user.email_confirmed_at) {
@@ -92,29 +92,27 @@ export default function AuthPage() {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-600/20">
             <Car className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Roadside Rescue</h1>
-          <p className="text-white/80">Your emergency assistance partner</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Roadside Rescue</h1>
+          <p className="text-gray-500">Your emergency assistance partner</p>
         </div>
 
         {/* Auth Form */}
-        <div className="glass rounded-3xl p-8">
+        <div className="card">
           <div className="flex mb-6">
             <button
               onClick={() => setIsLogin(true)}
-              className={`flex-1 py-2 text-center rounded-xl transition-all ${
-                isLogin ? "bg-blue-600 text-white" : "text-gray-600"
-              }`}
+              className={`flex-1 py-2 text-center rounded-xl transition-all ${isLogin ? "bg-blue-600 text-white" : "text-gray-600"
+                }`}
             >
               Login
             </button>
             <button
               onClick={() => setIsLogin(false)}
-              className={`flex-1 py-2 text-center rounded-xl transition-all ${
-                !isLogin ? "bg-blue-600 text-white" : "text-gray-600"
-              }`}
+              className={`flex-1 py-2 text-center rounded-xl transition-all ${!isLogin ? "bg-blue-600 text-white" : "text-gray-600"
+                }`}
             >
               Sign Up
             </button>
@@ -128,8 +126,8 @@ export default function AuthPage() {
                   type="text"
                   placeholder="Full Name"
                   value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full pl-12 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                   required={!isLogin}
                 />
               </div>
@@ -141,8 +139,8 @@ export default function AuthPage() {
                 type="email"
                 placeholder="Email Address"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full pl-12 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 required
               />
             </div>
@@ -153,8 +151,8 @@ export default function AuthPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full pl-12 pr-12 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full pl-12 pr-12 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 required
               />
               <button
@@ -176,11 +174,10 @@ export default function AuthPage() {
           </form>
 
           {message && (
-            <div className={`mt-4 p-3 rounded-lg text-center text-sm ${
-              message.includes("successful") || message.includes("created") || message.includes("verify")
-                ? "bg-green-50 text-green-700 border border-green-200" 
+            <div className={`mt-4 p-3 rounded-lg text-center text-sm ${message.includes("successful") || message.includes("created") || message.includes("verify")
+                ? "bg-green-50 text-green-700 border border-green-200"
                 : "bg-red-50 text-red-700 border border-red-200"
-            }`}>
+              }`}>
               <p>{message}</p>
               {message.includes("verify") && (
                 <p className="text-xs mt-2 text-green-600">

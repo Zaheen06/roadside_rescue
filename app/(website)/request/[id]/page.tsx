@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
-import { Clock, MapPin, CheckCircle, XCircle, Loader, Car, Fuel, Wrench, Phone, Navigation } from "lucide-react";
+import { Clock, MapPin, CheckCircle, XCircle, Loader, Car, Fuel, Wrench, Phone, Navigation, Timer } from "lucide-react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import AuthGuard from "@/components/AuthGuard";
 import PaymentSection from "@/components/PaymentSection";
+import { calculateETA, ETAResult } from "@/lib/eta";
+import { subscribeToPush, sendPushNotification } from "@/lib/pushNotification";
 
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
@@ -54,11 +56,20 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [techLocation, setTechLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [eta, setEta] = useState<ETAResult | null>(null);
+
+  // Timeout system states
+  const [failedTechs, setFailedTechs] = useState<string[]>([]);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      // Subscribe to push notifications when user opens request page
+      if (user?.id) {
+        subscribeToPush(user.id).catch(() => {/* user may have denied permission */ });
+      }
     };
     getUser();
 
@@ -75,7 +86,15 @@ export default function RequestDetailPage() {
             table: "requests",
             filter: `id=eq.${requestId}`,
           },
-          () => {
+          async (payload: any) => {
+            const newStatus = payload?.new?.status;
+            const userId = (await supabase.auth.getUser()).data.user?.id;
+            // Fire push notifications on key status changes
+            if (userId && newStatus === "accepted") {
+              sendPushNotification(userId, "🚗 Technician Assigned!", "A technician has accepted your request and is on the way.", `/request/${requestId}`);
+            } else if (userId && newStatus === "completed") {
+              sendPushNotification(userId, "✅ Service Completed", "Your roadside rescue service has been completed!", `/request/${requestId}`);
+            }
             fetchRequest();
           }
         )
@@ -119,14 +138,62 @@ export default function RequestDetailPage() {
     if (data) {
       setRequest(data as any);
       if (data.technicians?.current_lat && data.technicians?.current_lon) {
-        setTechLocation({
-          lat: data.technicians.current_lat,
-          lon: data.technicians.current_lon,
-        });
+        const techLoc = { lat: data.technicians.current_lat, lon: data.technicians.current_lon };
+        setTechLocation(techLoc);
+        // Calculate live ETA
+        setEta(calculateETA(data.lat, data.lon, techLoc.lat, techLoc.lon));
       }
     }
     setLoading(false);
   }
+
+  // --- Timeout & Reassignment Logic ---
+  useEffect(() => {
+    // If request has been assigned to a tech but is still "pending" (waiting for their accept)
+    if (request?.status === "pending" && request?.assigned_technician) {
+      setCountdown(30); // 30 seconds to accept
+    } else {
+      setCountdown(null);
+    }
+  }, [request?.status, request?.assigned_technician, request?.id]);
+
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown <= 0) {
+      reassignTechnician();
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => (c ? c - 1 : 0)), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  async function reassignTechnician() {
+    if (!request || !request.assigned_technician) return;
+
+    setCountdown(null); // Stop timer
+    const newFailed = [...failedTechs, request.assigned_technician];
+    setFailedTechs(newFailed);
+
+    try {
+      await fetch("/api/technicians/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat: request.lat,
+          lon: request.lon,
+          vehicle_type: request.vehicle_type,
+          request_id: request.id,
+          excluded_techs: newFailed,
+        }),
+      });
+      // Re-fetch to see the new status / new tech
+      fetchRequest();
+    } catch (err) {
+      console.error("Reassignment failed:", err);
+    }
+  }
+  // ------------------------------------
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -242,7 +309,32 @@ export default function RequestDetailPage() {
 
             {request.technicians && (
               <div className="bg-blue-50 rounded-xl p-6 mb-6">
-                <h3 className="text-lg font-semibold text-blue-900 mb-4">Assigned Technician</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-blue-900">
+                    {request.status === "pending" ? "Contacting Technician..." : "Assigned Technician"}
+                  </h3>
+                  {countdown !== null && (
+                    <span className="text-sm font-bold bg-blue-200 text-blue-800 px-3 py-1 rounded-full animate-pulse">
+                      Waiting for acceptance... {countdown}s
+                    </span>
+                  )}
+                </div>
+
+                {/* ETA Banner */}
+                {eta && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 bg-blue-600 text-white rounded-xl px-5 py-4 mb-4"
+                  >
+                    <Timer size={22} className="shrink-0" />
+                    <div>
+                      <p className="font-bold text-lg">🚗 Technician arriving in {eta.etaText}</p>
+                      <p className="text-blue-100 text-sm">{eta.distanceKm} km away · updates live</p>
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xl font-bold text-blue-900">{request.technicians.name}</p>
@@ -263,13 +355,13 @@ export default function RequestDetailPage() {
                   </div>
                   {techLocation && (
                     <a
-                      href={`https://www.google.com/maps/dir/${techLocation.lat},${techLocation.lon}/${request.lat},${request.lon}`}
+                      href={`/tracking/${request.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
                     >
                       <Navigation size={18} />
-                      Track Technician
+                      Live Tracking
                     </a>
                   )}
                 </div>

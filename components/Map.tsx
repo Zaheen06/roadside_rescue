@@ -46,9 +46,9 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
 
   // Force new map instance when coordinates change significantly
   useEffect(() => {
-    if (prevCoordsRef.current && 
-        (Math.abs(prevCoordsRef.current.lat - lat) > 0.0001 || 
-         Math.abs(prevCoordsRef.current.lon - lon) > 0.0001)) {
+    if (prevCoordsRef.current &&
+      (Math.abs(prevCoordsRef.current.lat - lat) > 0.0001 ||
+        Math.abs(prevCoordsRef.current.lon - lon) > 0.0001)) {
       // Coordinates changed significantly, force new map
       mapIdRef.current = `map-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
@@ -67,7 +67,7 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
   }
 
   return (
-    <div 
+    <div
       id={mapIdRef.current}
       key={mapIdRef.current}
       className="w-full h-[300px] rounded-2xl overflow-hidden shadow-lg border border-white/30 animate-fade-in"
@@ -79,7 +79,6 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom={true}
         className="rounded-2xl"
-        whenCreated={() => {}}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -97,7 +96,7 @@ export default function Map({ lat, lon }: { lat: number; lon: number }) {
             </div>
           </Popup>
         </Marker>
-        
+
         <MapUpdater lat={lat} lon={lon} />
       </MapContainer>
     </div>

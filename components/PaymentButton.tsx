@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { loadRazorpayScript, RazorpayOptions, RazorpayResponse } from "@/lib/razorpay";
 import { Loader } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface PaymentButtonProps {
   amount: number;
@@ -104,7 +105,7 @@ export default function PaymentButton({
 
             // Payment successful
             onSuccess?.();
-            
+
             // Reload page to show updated payment status
             setTimeout(() => {
               window.location.reload();
@@ -131,25 +132,58 @@ export default function PaymentButton({
     }
   };
 
+  const handleBypassPayment = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("requests")
+        .update({ payment_status: "paid", status: "accepted" })
+        .eq("id", requestId);
+
+      if (error) {
+        throw new Error(error.message || "Failed to update payment status");
+      }
+
+      onSuccess?.();
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error: any) {
+      console.error("Bypass payment error:", error);
+      onError?.(error.message || "Failed to bypass payment");
+      setLoading(false);
+    }
+  };
+
   return (
-    <button
-      onClick={handlePayment}
-      disabled={loading || !scriptLoaded}
-      className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-xl text-lg font-bold shadow-lg hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-105 active:scale-95"
-    >
-      {loading ? (
-        <>
-          <Loader className="animate-spin" size={20} />
-          Processing Payment...
-        </>
-      ) : (
-        <>
-          <span>Pay Now - ₹{amount.toFixed(2)}</span>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </>
-      )}
-    </button>
+    <div>
+      <button
+        onClick={handlePayment}
+        disabled={loading || !scriptLoaded}
+        className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-xl text-lg font-bold shadow-lg hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:scale-105 active:scale-95"
+      >
+        {loading ? (
+          <>
+            <Loader className="animate-spin" size={20} />
+            Processing Payment...
+          </>
+        ) : (
+          <>
+            <span>Pay Now - ₹{amount.toFixed(2)}</span>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </>
+        )}
+      </button>
+      <button
+        onClick={handleBypassPayment}
+        disabled={loading}
+        className="w-full mt-3 bg-gray-600 text-white px-6 py-4 rounded-xl text-lg font-bold shadow-md hover:bg-gray-700 transition-all flex items-center justify-center gap-3"
+      >
+        Bypass Payment (Test)
+      </button>
+    </div>
   );
 }

@@ -12,7 +12,7 @@ export default function TechnicianAuthPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const router = useRouter();
-  
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -33,19 +33,19 @@ export default function TechnicianAuthPage() {
           password: formData.password,
         });
         if (error) throw error;
-        
+
         // Check if user is a technician
         const { data: techData } = await supabase
           .from("technicians")
           .select("*")
           .eq("id", data.user.id)
           .single();
-        
+
         if (!techData) {
           await supabase.auth.signOut();
           throw new Error("Access denied. Technician account required.");
         }
-        
+
         setMessage("Login successful!");
         router.push("/technician");
       } else {
@@ -54,14 +54,14 @@ export default function TechnicianAuthPage() {
           email: formData.email,
           password: formData.password,
           options: {
-            data: { 
+            data: {
               name: formData.name,
               role: "technician"
             }
           }
         });
         if (authError) throw authError;
-        
+
         // Create technician record
         const { error: techError } = await supabase
           .from("technicians")
@@ -74,9 +74,9 @@ export default function TechnicianAuthPage() {
               is_available: true,
             },
           ]);
-        
+
         if (techError) throw techError;
-        
+
         setMessage("Account created! Please verify your email and login.");
       }
     } catch (error: any) {
@@ -95,29 +95,27 @@ export default function TechnicianAuthPage() {
       >
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-600/20">
             <Wrench className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Technician Portal</h1>
-          <p className="text-white/80">Roadside Rescue Technician Login</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Technician Portal</h1>
+          <p className="text-gray-500">Roadside Rescue Technician Login</p>
         </div>
 
         {/* Auth Form */}
-        <div className="glass rounded-3xl p-8">
+        <div className="card">
           <div className="flex mb-6">
             <button
               onClick={() => setIsLogin(true)}
-              className={`flex-1 py-2 text-center rounded-xl transition-all ${
-                isLogin ? "bg-orange-600 text-white" : "text-gray-600"
-              }`}
+              className={`flex-1 py-2 text-center rounded-xl transition-all ${isLogin ? "bg-orange-600 text-white" : "text-gray-600"
+                }`}
             >
               Login
             </button>
             <button
               onClick={() => setIsLogin(false)}
-              className={`flex-1 py-2 text-center rounded-xl transition-all ${
-                !isLogin ? "bg-orange-600 text-white" : "text-gray-600"
-              }`}
+              className={`flex-1 py-2 text-center rounded-xl transition-all ${!isLogin ? "bg-orange-600 text-white" : "text-gray-600"
+                }`}
             >
               Register
             </button>
@@ -131,8 +129,8 @@ export default function TechnicianAuthPage() {
                     type="text"
                     placeholder="Full Name"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full pl-4 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full pl-4 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
                     required={!isLogin}
                   />
                 </div>
@@ -141,16 +139,16 @@ export default function TechnicianAuthPage() {
                     type="tel"
                     placeholder="Phone Number"
                     value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full pl-4 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full pl-4 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
                     required={!isLogin}
                   />
                 </div>
                 <div className="relative">
                   <select
                     value={formData.vehicle_type}
-                    onChange={(e) => setFormData({...formData, vehicle_type: e.target.value})}
-                    className="w-full pl-4 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    onChange={(e) => setFormData({ ...formData, vehicle_type: e.target.value })}
+                    className="w-full pl-4 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
                     required={!isLogin}
                   >
                     <option value="bike">Bike</option>
@@ -167,8 +165,8 @@ export default function TechnicianAuthPage() {
                 type="email"
                 placeholder="Email Address"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full pl-12 pr-4 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
                 required
               />
             </div>
@@ -179,8 +177,8 @@ export default function TechnicianAuthPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                className="w-full pl-12 pr-12 py-3 bg-white/60 backdrop-blur rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full pl-12 pr-12 py-3 bg-gray-50 text-gray-900 rounded-xl border border-gray-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition-colors"
                 required
               />
               <button
@@ -202,10 +200,9 @@ export default function TechnicianAuthPage() {
           </form>
 
           {message && (
-            <p className={`mt-4 text-center text-sm ${
-              message.includes("successful") || message.includes("created") 
+            <p className={`mt-4 text-center text-sm ${message.includes("successful") || message.includes("created")
                 ? "text-green-600" : "text-red-600"
-            }`}>
+              }`}>
               {message}
             </p>
           )}
