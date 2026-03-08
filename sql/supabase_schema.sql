@@ -1,5 +1,3 @@
--- supabase_schema.sql
-
 -- 1) technicians
 create table if not exists technicians (
   id uuid default gen_random_uuid() primary key,
@@ -55,7 +53,8 @@ create table if not exists requests (
   assigned_technician uuid references technicians(id),
   estimated_price numeric,
   created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  updated_at timestamptz default now(),
+  otp text
 );
 
 -- 5) fuel_requests (detail)

@@ -19,6 +19,8 @@ export default function TechnicianDashboard() {
   const [isTracking, setIsTracking] = useState(false);
   const [trackingConnected, setTrackingConnected] = useState(false);
   const [trackingLogs, setTrackingLogs] = useState<string[]>([]);
+  const [showOtpPrompt, setShowOtpPrompt] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
   const router = useRouter();
   const trackingInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -235,6 +237,11 @@ export default function TechnicianDashboard() {
   async function markArrived() {
     if (!currentRequest || !technician) return;
 
+    if (currentRequest.otp && otpInput !== currentRequest.otp) {
+      alert("Invalid OTP! Please ask the user for the correct 4-digit PIN.");
+      return;
+    }
+
     // Stop tracking if running
     if (isTracking) {
       stopTracking();
@@ -245,7 +252,9 @@ export default function TechnicianDashboard() {
       .update({ status: "in_progress" })
       .eq("id", currentRequest.id);
 
-    alert("Marked as Arrived!");
+    setShowOtpPrompt(false);
+    setOtpInput("");
+    alert("Verified and Marked as Arrived!");
     fetchAssignedRequest(technician.id);
   }
 
@@ -409,12 +418,37 @@ export default function TechnicianDashboard() {
 
               <div className="flex gap-3">
                 {currentRequest.status === "accepted" && (
-                  <button
-                    onClick={markArrived}
-                    className="flex-1 bg-yellow-500 text-white py-3 rounded-xl font-semibold hover:bg-yellow-600 transition"
-                  >
-                    Mark Arrived
-                  </button>
+                  !showOtpPrompt ? (
+                    <button
+                      onClick={() => setShowOtpPrompt(true)}
+                      className="flex-1 bg-yellow-500 text-white py-3 rounded-xl font-semibold hover:bg-yellow-600 transition"
+                    >
+                      Mark Arrived & Start Work
+                    </button>
+                  ) : (
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="text"
+                        maxLength={4}
+                        placeholder="Enter 4-digit OTP"
+                        value={otpInput}
+                        onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                        className="flex-1 px-4 py-2 rounded-xl border-2 border-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 font-mono text-center text-lg"
+                      />
+                      <button
+                        onClick={markArrived}
+                        className="bg-green-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-green-700 transition"
+                      >
+                        Verify
+                      </button>
+                      <button
+                        onClick={() => { setShowOtpPrompt(false); setOtpInput(""); }}
+                        className="bg-gray-300 text-gray-700 px-4 py-2 rounded-xl font-semibold hover:bg-gray-400 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )
                 )}
                 {currentRequest.status === "in_progress" && (
                   <button

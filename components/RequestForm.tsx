@@ -82,6 +82,8 @@ export default function RequestForm() {
       const { data: { user } } = await supabase.auth.getUser();
       const selectedService = SERVICES.find((s) => s.value === service);
 
+      const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
       const { data: requestData, error } = await supabase
         .from("requests")
         .insert([{
@@ -95,6 +97,7 @@ export default function RequestForm() {
           status: "pending",
           estimated_price: cost,
           price: cost,
+          otp,
         }])
         .select()
         .single();

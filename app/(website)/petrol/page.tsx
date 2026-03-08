@@ -127,6 +127,8 @@ export default function PetrolPage() {
 
       const { data: { user } } = await supabase.auth.getUser();
 
+      const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
       const { data: requestData, error: requestError } = await supabase
         .from("requests")
         .insert([
@@ -141,6 +143,7 @@ export default function PetrolPage() {
             status: "pending",
             estimated_price: cost,
             price: cost,
+            otp,
           },
         ])
         .select()

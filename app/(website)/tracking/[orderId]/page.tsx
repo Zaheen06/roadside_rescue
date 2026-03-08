@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import { socket } from "@/lib/socket";
+import { supabase } from "@/lib/supabaseClient";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +28,24 @@ export default function TrackingPage({ params }: PageProps) {
     const [pathHistory, setPathHistory] = useState<[number, number][]>([]);
     const [status, setStatus] = useState("Waiting for updates...");
     const [eta, setEta] = useState("-- mins");
+    const [otp, setOtp] = useState<string | null>(null);
 
     useEffect(() => {
+        // Fetch order details for OTP
+        const fetchOrderDetails = async () => {
+            const { data } = await supabase
+                .from("requests")
+                .select("otp, status")
+                .eq("id", orderId)
+                .single();
+            if (data?.otp) setOtp(data.otp);
+            if (data?.status === "delivered" || data?.status === "completed") {
+                setStatus("Delivered");
+                setEta("Arrived");
+            }
+        };
+        fetchOrderDetails();
+
         // Join room
         socket.emit("join_track_room", orderId);
 
@@ -99,12 +116,20 @@ export default function TrackingPage({ params }: PageProps) {
                         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Delivery Tracking</h1>
                         <p className="text-slate-500">Order #{orderId}</p>
                     </div>
-                    <Badge
-                        variant={status === "Delivered" ? "default" : "secondary"}
-                        className="text-lg px-4 py-1"
-                    >
-                        {status}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-2">
+                        <Badge
+                            variant={status === "Delivered" ? "default" : "secondary"}
+                            className="text-lg px-4 py-1"
+                        >
+                            {status}
+                        </Badge>
+                        {otp && status !== "Delivered" && (
+                            <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg border border-yellow-200 shadow-sm flex items-center gap-2">
+                                <span className="text-sm font-semibold uppercase tracking-wider">OTP PIN</span>
+                                <span className="text-xl font-mono font-bold">{otp}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Stats Grid */}
