@@ -403,7 +403,7 @@ export default function TechnicianDashboard() {
                   {!isTracking ? (
                     <button
                       onClick={startTracking}
-                      disabled={!trackingConnected || currentRequest.status === "completed"}
+                      disabled={currentRequest.status === "completed"}
                       className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       <Play size={16} />
