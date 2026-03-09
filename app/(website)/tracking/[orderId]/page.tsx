@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { socket } from "@/lib/socket";
 import { supabase } from "@/lib/supabaseClient";
 import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -47,35 +46,36 @@ export default function TrackingPage({ params }: PageProps) {
         fetchOrderDetails();
 
         // Join room
-        socket.emit("join_track_room", orderId);
+        const channel = supabase.channel(`tracking_${orderId}`);
 
-        // Listen for updates
-        socket.on("location_broadcast", (data) => {
-            console.log("Location received:", data);
-            const newPoint: [number, number] = [data.lat, data.lng];
+        channel
+            .on('broadcast', { event: 'location_broadcast' }, (payload) => {
+                const data = payload.payload;
+                console.log("Location received:", data);
+                const newPoint: [number, number] = [data.lat, data.lng];
 
-            setLocation({ lat: data.lat, lng: data.lng });
-            setPathHistory((prev) => [...prev, newPoint]);
+                setLocation({ lat: data.lat, lng: data.lng });
+                setPathHistory((prev) => [...prev, newPoint]);
 
-            if (data.status === "delivered") {
-                setStatus("Delivered");
-                setEta("Arrived");
-            } else {
-                setStatus("On the way");
-                setEta("15 mins"); // Mock ETA
-            }
-        });
-
-        socket.on("status_update", (data) => {
-            if (data.status === 'delivered') {
-                setStatus("Delivered");
-                setEta("Arrived");
-            }
-        });
+                if (data.status === "delivered") {
+                    setStatus("Delivered");
+                    setEta("Arrived");
+                } else {
+                    setStatus("On the way");
+                    setEta("15 mins"); // Mock ETA
+                }
+            })
+            .on('broadcast', { event: 'status_update' }, (payload) => {
+                const data = payload.payload;
+                if (data.status === 'delivered') {
+                    setStatus("Delivered");
+                    setEta("Arrived");
+                }
+            })
+            .subscribe();
 
         return () => {
-            socket.off("location_broadcast");
-            socket.off("status_update");
+            supabase.removeChannel(channel);
         };
     }, [orderId]);
 

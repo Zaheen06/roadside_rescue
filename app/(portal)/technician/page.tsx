@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { socket } from "@/lib/socket";
 import { motion } from "framer-motion";
 import { MapPin, CheckCircle, XCircle, Loader, Clock, Navigation, Phone, Car, Play, Square, Map as MapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -23,21 +22,12 @@ export default function TechnicianDashboard() {
   const [otpInput, setOtpInput] = useState("");
   const router = useRouter();
   const trackingInterval = useRef<NodeJS.Timeout | null>(null);
+  const trackingChannelRef = useRef<any>(null);
 
   useEffect(() => {
     checkTechnicianAuth();
 
-    // Socket connection for tracking
-    if (socket.connected) {
-      setTrackingConnected(true);
-    }
-
-    socket.on("connect", () => setTrackingConnected(true));
-    socket.on("disconnect", () => setTrackingConnected(false));
-
     return () => {
-      socket.off("connect");
-      socket.off("disconnect");
       stopTracking();
     };
   }, []);
@@ -178,17 +168,25 @@ export default function TechnicianDashboard() {
   }
 
   async function startTracking() {
-    if (!currentRequest || !trackingConnected) {
-      alert("Not connected to tracking server. Please ensure tracking server is running.");
+    if (!currentRequest) {
+      alert("No active request to track.");
       return;
     }
 
     setIsTracking(true);
+    setTrackingConnected(true);
     addTrackingLog(`Starting location tracking for request: ${currentRequest.id}`);
 
-    // Join tracking room
-    socket.emit("join_track_room", currentRequest.id);
-    addTrackingLog(`Joined tracking room: ${currentRequest.id}`);
+    // Create Supabase Channel for Broadcast
+    const channel = supabase.channel(`tracking_${currentRequest.id}`);
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        addTrackingLog(`Joined tracking room: ${currentRequest.id}`);
+      }
+    });
+
+    trackingChannelRef.current = channel;
 
     // Start sending location updates
     trackingInterval.current = setInterval(async () => {
@@ -211,7 +209,15 @@ export default function TechnicianDashboard() {
           status: "ontheway"
         };
 
-        socket.emit("location_update", payload);
+        // Broadcast via Supabase
+        if (trackingChannelRef.current) {
+          trackingChannelRef.current.send({
+            type: 'broadcast',
+            event: 'location_broadcast',
+            payload: payload
+          });
+        }
+
         addTrackingLog(`Sent: ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
 
         // Update technician location in database
@@ -230,7 +236,12 @@ export default function TechnicianDashboard() {
       clearInterval(trackingInterval.current);
       trackingInterval.current = null;
     }
+    if (trackingChannelRef.current) {
+      supabase.removeChannel(trackingChannelRef.current);
+      trackingChannelRef.current = null;
+    }
     setIsTracking(false);
+    setTrackingConnected(false);
     addTrackingLog("Tracking stopped");
   }
 
@@ -258,15 +269,20 @@ export default function TechnicianDashboard() {
     fetchAssignedRequest(technician.id);
   }
 
-  // Complete delivery and stop tracking
   async function markCompleted() {
+    // Notify tracking server that it's delivered
+    if (trackingChannelRef.current) {
+      trackingChannelRef.current.send({
+        type: 'broadcast',
+        event: 'status_update',
+        payload: { status: 'delivered' }
+      });
+    }
+
     // Stop tracking if running
     if (isTracking) {
       stopTracking();
     }
-
-    // Always notify tracking server that it's delivered
-    socket.emit("order_delivered", currentRequest?.id);
 
     if (!currentRequest || !technician) return;
 

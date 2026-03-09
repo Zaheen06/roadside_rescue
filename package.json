@@ -3,9 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev:next": "next dev --turbopack",
-    "dev:tracking": "cd tracking-server && npm install && npm run dev",
-    "dev": "concurrently \"npm run dev:next\" \"npm run dev:tracking\"",
+    "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
