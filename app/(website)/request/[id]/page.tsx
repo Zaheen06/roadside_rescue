@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { motion } from "framer-motion";
-import { Clock, MapPin, CheckCircle, XCircle, Loader, Car, Fuel, Wrench, Phone, Navigation, Timer } from "lucide-react";
-import { useParams } from "next/navigation";
+import {
+  Clock, MapPin, CheckCircle, XCircle, Loader, Car, Fuel, Wrench,
+  Phone, Navigation, Timer, ArrowLeft, Star
+} from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
 import PaymentSection from "@/components/PaymentSection";
 import { calculateETA, ETAResult } from "@/lib/eta";
@@ -14,220 +18,110 @@ import { subscribeToPush, sendPushNotification } from "@/lib/pushNotification";
 const Map = dynamic(() => import("@/components/Map"), { ssr: false });
 
 interface Request {
-  id: string;
-  service_id: number;
-  vehicle_type: string;
-  description: string;
-  status: string;
-  lat: number;
-  lon: number;
-  address: string;
-  assigned_technician: string | null;
-  estimated_price: number | null;
-  price: number | null;
-  payment_status: string;
-  created_at: string;
-  updated_at: string;
-  services?: {
-    title: string;
-    key: string;
-    base_price: number;
-    estimated_time_minutes: number;
-  };
-  technicians?: {
-    name: string;
-    phone: string;
-    rating: number;
-    current_lat: number;
-    current_lon: number;
-  };
-  fuel_requests?: {
-    fuel_type: string;
-    litres: number;
-    price_per_litre: number;
-    delivered: boolean;
-  }[];
+  id: string; service_id: number; vehicle_type: string; description: string;
+  status: string; lat: number; lon: number; address: string;
+  assigned_technician: string | null; estimated_price: number | null;
+  price: number | null; payment_status: string; created_at: string; updated_at: string;
+  services?: { title: string; key: string; base_price: number; estimated_time_minutes: number };
+  technicians?: { name: string; phone: string; rating: number; current_lat: number; current_lon: number };
+  fuel_requests?: { fuel_type: string; litres: number; price_per_litre: number; delivered: boolean }[];
+}
+
+const STATUS_CONFIG: Record<string, { label: string; icon: any; bg: string; text: string; border: string }> = {
+  pending: { label: "Pending", icon: Clock, bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200" },
+  accepted: { label: "Accepted", icon: CheckCircle, bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
+  in_progress: { label: "In Progress", icon: Loader, bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+  completed: { label: "Completed", icon: CheckCircle, bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+  cancelled: { label: "Cancelled", icon: XCircle, bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+};
+
+function ServiceIcon({ k }: { k: string }) {
+  if (k === "fuel_delivery") return <Fuel size={20} className="text-amber-600" />;
+  return <Wrench size={20} className="text-blue-600" />;
 }
 
 export default function RequestDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const requestId = params.id as string;
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [techLocation, setTechLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [user, setUser] = useState<any>(null);
   const [eta, setEta] = useState<ETAResult | null>(null);
-
-  // Timeout system states
   const [failedTechs, setFailedTechs] = useState<string[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
-      // Subscribe to push notifications when user opens request page
-      if (user?.id) {
-        subscribeToPush(user.id).catch(() => {/* user may have denied permission */ });
-      }
-    };
-    getUser();
-
+      if (user?.id) subscribeToPush(user.id).catch(() => { });
+    });
     if (requestId) {
       fetchRequest();
-      // Set up real-time subscription
-      const subscription = supabase
-        .channel(`request:${requestId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "requests",
-            filter: `id=eq.${requestId}`,
-          },
+      const subscription = supabase.channel(`request:${requestId}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "requests", filter: `id=eq.${requestId}` },
           async (payload: any) => {
             const newStatus = payload?.new?.status;
             const userId = (await supabase.auth.getUser()).data.user?.id;
-            // Fire push notifications on key status changes
-            if (userId && newStatus === "accepted") {
-              sendPushNotification(userId, "🚗 Technician Assigned!", "A technician has accepted your request and is on the way.", `/request/${requestId}`);
-            } else if (userId && newStatus === "completed") {
-              sendPushNotification(userId, "✅ Service Completed", "Your roadside rescue service has been completed!", `/request/${requestId}`);
-            }
+            if (userId && newStatus === "accepted") sendPushNotification(userId, "🚗 Technician Assigned!", "A technician has accepted your request.", `/request/${requestId}`);
+            else if (userId && newStatus === "completed") sendPushNotification(userId, "✅ Service Completed", "Your service has been completed!", `/request/${requestId}`);
             fetchRequest();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        subscription.unsubscribe();
-      };
+          }).subscribe();
+      return () => { subscription.unsubscribe(); };
     }
   }, [requestId]);
 
   async function fetchRequest() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("requests")
-      .select(`
-        *,
-        services:service_id (
-          title,
-          key,
-          base_price,
-          estimated_time_minutes
-        ),
-        technicians:assigned_technician (
-          name,
-          phone,
-          rating,
-          current_lat,
-          current_lon
-        ),
-        fuel_requests (
-          fuel_type,
-          litres,
-          price_per_litre,
-          delivered
-        )
-      `)
-      .eq("id", requestId)
-      .single();
-
+    const { data } = await supabase.from("requests").select(`
+      *, services:service_id(title,key,base_price,estimated_time_minutes),
+      technicians:assigned_technician(name,phone,rating,current_lat,current_lon),
+      fuel_requests(fuel_type,litres,price_per_litre,delivered)
+    `).eq("id", requestId).single();
     if (data) {
       setRequest(data as any);
       if (data.technicians?.current_lat && data.technicians?.current_lon) {
         const techLoc = { lat: data.technicians.current_lat, lon: data.technicians.current_lon };
         setTechLocation(techLoc);
-        // Calculate live ETA
         setEta(calculateETA(data.lat, data.lon, techLoc.lat, techLoc.lon));
       }
     }
     setLoading(false);
   }
 
-  // --- Timeout & Reassignment Logic ---
   useEffect(() => {
-    // If request has been assigned to a tech but is still "pending" (waiting for their accept)
-    if (request?.status === "pending" && request?.assigned_technician) {
-      setCountdown(30); // 30 seconds to accept
-    } else {
-      setCountdown(null);
-    }
-  }, [request?.status, request?.assigned_technician, request?.id]);
+    if (request?.status === "pending" && request?.assigned_technician) setCountdown(30);
+    else setCountdown(null);
+  }, [request?.status, request?.assigned_technician]);
 
   useEffect(() => {
     if (countdown === null) return;
-
-    if (countdown <= 0) {
-      reassignTechnician();
-      return;
-    }
+    if (countdown <= 0) { reassignTechnician(); return; }
     const timer = setTimeout(() => setCountdown((c) => (c ? c - 1 : 0)), 1000);
     return () => clearTimeout(timer);
   }, [countdown]);
 
   async function reassignTechnician() {
-    if (!request || !request.assigned_technician) return;
-
-    setCountdown(null); // Stop timer
+    if (!request?.assigned_technician) return;
+    setCountdown(null);
     const newFailed = [...failedTechs, request.assigned_technician];
     setFailedTechs(newFailed);
-
     try {
       await fetch("/api/technicians/match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: request.lat,
-          lon: request.lon,
-          vehicle_type: request.vehicle_type,
-          request_id: request.id,
-          excluded_techs: newFailed,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: request.lat, lon: request.lon, vehicle_type: request.vehicle_type, request_id: request.id, excluded_techs: newFailed }),
       });
-      // Re-fetch to see the new status / new tech
       fetchRequest();
-    } catch (err) {
-      console.error("Reassignment failed:", err);
-    }
+    } catch (err) { console.error("Reassignment failed:", err); }
   }
-  // ------------------------------------
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "completed":
-        return <CheckCircle className="text-green-600" size={24} />;
-      case "cancelled":
-        return <XCircle className="text-red-600" size={24} />;
-      case "in_progress":
-        return <Loader className="text-blue-600 animate-spin" size={24} />;
-      default:
-        return <Clock className="text-yellow-600" size={24} />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed":
-        return "bg-green-100 text-green-800 border-green-300";
-      case "cancelled":
-        return "bg-red-100 text-red-800 border-red-300";
-      case "in_progress":
-        return "bg-blue-100 text-blue-800 border-blue-300";
-      case "accepted":
-        return "bg-purple-100 text-purple-800 border-purple-300";
-      default:
-        return "bg-yellow-100 text-yellow-800 border-yellow-300";
-    }
-  };
 
   if (loading) {
     return (
       <AuthGuard>
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader className="animate-spin text-white" size={32} />
+        <div className="flex flex-col items-center justify-center min-h-screen gap-3">
+          <Loader className="animate-spin text-blue-600" size={32} />
+          <p className="text-gray-400 text-sm">Loading request details...</p>
         </div>
       </AuthGuard>
     );
@@ -236,181 +130,184 @@ export default function RequestDetailPage() {
   if (!request) {
     return (
       <AuthGuard>
-        <div className="text-center py-12">
-          <p className="text-white text-xl">Request not found</p>
+        <div className="flex items-center justify-center min-h-screen px-4">
+          <div className="card text-center max-w-sm w-full py-12" style={{ borderRadius: 24 }}>
+            <XCircle size={48} className="text-red-400 mx-auto mb-4" />
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Request not found</h2>
+            <Link href="/dashboard"><button className="btn-primary">Back to Dashboard</button></Link>
+          </div>
         </div>
       </AuthGuard>
     );
   }
 
+  const amount = request.price || request.estimated_price || 0;
+  const statusCfg = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
+  const StatusIcon = statusCfg.icon;
+
   return (
     <AuthGuard>
-      <div className="min-h-screen py-8">
-        <div className="max-w-4xl mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-6 mb-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  {request.services?.title || request.description}
-                </h1>
-                <p className="text-gray-600">
-                  Request ID: {request.id.slice(0, 8)}...
-                </p>
+      <div className="min-h-screen py-10 px-4" style={{ background: "#F8FAFC" }}>
+        <div className="max-w-3xl mx-auto">
+
+          {/* Back */}
+          <motion.button initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition mb-6">
+            <ArrowLeft size={16} /> Back to Dashboard
+          </motion.button>
+
+          {/* Header Card */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+            className="card mb-5" style={{ borderRadius: 24 }}>
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <ServiceIcon k={request.services?.key || ""} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-extrabold text-gray-900 leading-tight">
+                    {request.services?.title || request.description}
+                  </h1>
+                  <p className="text-gray-400 text-xs font-mono mt-1">ID: {request.id.slice(0, 16)}...</p>
+                </div>
               </div>
-              <div className={`px-6 py-3 rounded-xl border flex items-center gap-3 ${getStatusColor(request.status)}`}>
-                {getStatusIcon(request.status)}
-                <span className="font-bold text-lg capitalize">{request.status.replace("_", " ")}</span>
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-bold shrink-0 ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
+                <StatusIcon size={14} className={request.status === "in_progress" ? "animate-spin" : ""} />
+                {statusCfg.label}
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white/60 rounded-xl p-4">
-                <p className="text-sm text-gray-600 mb-1">Vehicle Type</p>
-                <p className="text-lg font-semibold text-gray-900 capitalize">{request.vehicle_type}</p>
+            {/* Meta grid */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: "Vehicle Type", value: request.vehicle_type, capitalize: true },
+                { label: "Created", value: new Date(request.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) },
+                { label: "Est. Time", value: request.services?.estimated_time_minutes ? `${request.services.estimated_time_minutes} min` : "—" },
+                { label: "Payment", value: request.payment_status || "pending", capitalize: true },
+              ].map(({ label, value, capitalize }) => (
+                <div key={label} className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 font-semibold mb-1">{label}</p>
+                  <p className={`text-sm font-bold text-gray-900 ${capitalize ? "capitalize" : ""}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Location */}
+          {request.address && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+              className="card mb-5" style={{ borderRadius: 24 }}>
+              <div className="flex items-center gap-2 mb-4">
+                <MapPin size={18} className="text-gray-500" />
+                <h3 className="font-bold text-gray-900">Location</h3>
               </div>
-              <div className="bg-white/60 rounded-xl p-4">
-                <p className="text-sm text-gray-600 mb-1">Created At</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {new Date(request.created_at).toLocaleString()}
-                </p>
+              <p className="text-gray-600 text-sm mb-4">{request.address}</p>
+              <div className="h-56 rounded-2xl overflow-hidden">
+                <Map lat={request.lat} lon={request.lon} />
               </div>
-              {request.services?.estimated_time_minutes && (
-                <div className="bg-white/60 rounded-xl p-4">
-                  <p className="text-sm text-gray-600 mb-1">Estimated Time</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {request.services.estimated_time_minutes} minutes
-                  </p>
+            </motion.div>
+          )}
+
+          {/* Technician */}
+          {request.technicians && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+              className="mb-5 rounded-3xl border-2 border-blue-100 overflow-hidden" style={{ background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)" }}>
+
+              {/* ETA Banner */}
+              {eta && (
+                <div className="flex items-center gap-3 px-6 py-4 text-white"
+                  style={{ background: "linear-gradient(135deg, #1E3A8A, #2563EB)" }}>
+                  <Timer size={20} className="shrink-0" />
+                  <div>
+                    <p className="font-bold">Technician arriving in {eta.etaText}</p>
+                    <p className="text-blue-200 text-xs">{eta.distanceKm} km away · updates live</p>
+                  </div>
                 </div>
               )}
-              <div className="bg-white/60 rounded-xl p-4">
-                <p className="text-sm text-gray-600 mb-1">Payment Status</p>
-                <p className="text-lg font-semibold text-gray-900 capitalize">
-                  {request.payment_status || "pending"}
-                </p>
-              </div>
-            </div>
 
-            {request.address && (
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <MapPin className="text-gray-600" size={20} />
-                  <h3 className="text-lg font-semibold text-gray-900">Location</h3>
-                </div>
-                <p className="text-gray-700 mb-4">{request.address}</p>
-                <div className="h-64 rounded-xl overflow-hidden">
-                  <Map lat={request.lat} lon={request.lon} />
-                </div>
-              </div>
-            )}
-
-            {request.technicians && (
-              <div className="bg-blue-50 rounded-xl p-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-blue-900">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
                     {request.status === "pending" ? "Contacting Technician..." : "Assigned Technician"}
-                  </h3>
+                  </p>
                   {countdown !== null && (
-                    <span className="text-sm font-bold bg-blue-200 text-blue-800 px-3 py-1 rounded-full animate-pulse">
-                      Waiting for acceptance... {countdown}s
+                    <span className="text-xs font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full animate-pulse">
+                      Waiting {countdown}s
                     </span>
                   )}
                 </div>
-
-                {/* ETA Banner */}
-                {eta && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-3 bg-blue-600 text-white rounded-xl px-5 py-4 mb-4"
-                  >
-                    <Timer size={22} className="shrink-0" />
-                    <div>
-                      <p className="font-bold text-lg">🚗 Technician arriving in {eta.etaText}</p>
-                      <p className="text-blue-100 text-sm">{eta.distanceKm} km away · updates live</p>
-                    </div>
-                  </motion.div>
-                )}
-
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mt-3">
                   <div>
-                    <p className="text-xl font-bold text-blue-900">{request.technicians.name}</p>
-                    {request.technicians.phone && (
-                      <a
-                        href={`tel:${request.technicians.phone}`}
-                        className="flex items-center gap-2 text-blue-700 mt-2 hover:text-blue-900"
-                      >
-                        <Phone size={18} />
-                        {request.technicians.phone}
-                      </a>
-                    )}
-                    {request.technicians.rating && (
-                      <p className="text-sm text-blue-600 mt-1">
-                        Rating: {request.technicians.rating} ⭐
-                      </p>
-                    )}
+                    <p className="text-xl font-extrabold text-blue-900">{request.technicians.name}</p>
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      {request.technicians.phone && (
+                        <a href={`tel:${request.technicians.phone}`}
+                          className="flex items-center gap-1.5 text-sm text-blue-700 font-semibold hover:text-blue-900">
+                          <Phone size={14} /> {request.technicians.phone}
+                        </a>
+                      )}
+                      {request.technicians.rating && (
+                        <span className="flex items-center gap-1 text-sm text-amber-600 font-semibold">
+                          <Star size={13} className="fill-amber-400 text-amber-400" /> {request.technicians.rating}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {techLocation && (
-                    <a
-                      href={`/tracking/${request.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
-                    >
-                      <Navigation size={18} />
-                      Live Tracking
-                    </a>
+                    <Link href={`/tracking/${request.id}`} target="_blank">
+                      <button className="btn-primary text-xs px-4 py-2">
+                        <Navigation size={14} /> Live Track
+                      </button>
+                    </Link>
                   )}
                 </div>
               </div>
-            )}
+            </motion.div>
+          )}
 
-            {request.fuel_requests && request.fuel_requests.length > 0 && (
-              <div className="bg-orange-50 rounded-xl p-6 mb-6">
-                <h3 className="text-lg font-semibold text-orange-900 mb-4">Fuel Details</h3>
-                {request.fuel_requests.map((fuel, index) => (
-                  <div key={index} className="bg-white rounded-lg p-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold text-gray-900 capitalize">{fuel.fuel_type}</p>
-                        <p className="text-sm text-gray-600">{fuel.litres}L @ ₹{fuel.price_per_litre}/L</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-orange-600">
-                          ₹{(fuel.litres * fuel.price_per_litre).toFixed(2)}
-                        </p>
-                        {fuel.delivered ? (
-                          <span className="text-xs text-green-600 font-semibold">Delivered</span>
-                        ) : (
-                          <span className="text-xs text-yellow-600 font-semibold">Pending</span>
-                        )}
-                      </div>
-                    </div>
+          {/* Fuel Details */}
+          {request.fuel_requests && request.fuel_requests.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+              className="card mb-5" style={{ borderRadius: 24 }}>
+              <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Fuel size={16} className="text-amber-500" /> Fuel Details
+              </h3>
+              {request.fuel_requests.map((fuel, i) => (
+                <div key={i} className="bg-amber-50 rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-gray-900 capitalize">{fuel.fuel_type}</p>
+                    <p className="text-sm text-gray-500">{fuel.litres}L @ ₹{fuel.price_per_litre}/L</p>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="text-right">
+                    <p className="font-extrabold text-amber-600 text-lg">₹{(fuel.litres * fuel.price_per_litre).toFixed(0)}</p>
+                    <span className={`text-xs font-bold ${fuel.delivered ? "text-green-600" : "text-yellow-600"}`}>
+                      {fuel.delivered ? "✓ Delivered" : "Pending"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
 
-            {(request.price || request.estimated_price) && (
+          {/* Payment */}
+          {(request.price || request.estimated_price) && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+              className="card" style={{ borderRadius: 24 }}>
               <PaymentSection
-                amount={request.price || request.estimated_price || 0}
+                amount={amount}
                 requestId={request.id}
                 description={request.services?.title || request.description}
                 paymentStatus={request.payment_status || "pending"}
-                onSuccess={() => {
-                  alert("Payment successful!");
-                  fetchRequest();
-                }}
+                onSuccess={() => { alert("Payment successful!"); fetchRequest(); }}
                 onError={(error) => alert(`Payment error: ${error}`)}
                 userEmail={user?.email}
                 userName={user?.user_metadata?.name}
                 userPhone={user?.phone}
               />
-            )}
-          </motion.div>
+            </motion.div>
+          )}
+
         </div>
       </div>
     </AuthGuard>

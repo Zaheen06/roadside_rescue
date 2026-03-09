@@ -96,41 +96,58 @@ export default function Dashboard() {
   const activeRequests = requests.filter(r => !["completed", "cancelled"].includes(r.status));
   const pastRequests = requests.filter(r => ["completed", "cancelled"].includes(r.status));
 
+  const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "there";
+
   return (
     <AuthGuard>
       <div className="min-h-screen py-8">
         <div className="max-w-3xl mx-auto px-4">
 
-          {/* ── Header ── */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-[40px] font-extrabold text-gray-900 leading-tight">My Requests</h1>
-              <p className="text-gray-500 text-sm mt-1">Track your roadside assistance history</p>
-            </div>
-            <Link href="/request">
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="btn-primary">
-                <Plus size={18} /> New Request
-              </motion.button>
-            </Link>
-          </motion.div>
-
-          {/* ── Quick Nav ── */}
-          <div className="flex gap-2 mb-8 overflow-x-auto pb-1">
-            {[
-              { href: "/request", label: "Services", icon: Wrench },
-              { href: "/petrol", label: "Fuel Delivery", icon: Fuel },
-              { href: "/tracking", label: "Live Track", icon: Navigation },
-            ].map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center gap-2 px-4 py-2 glass rounded-xl text-sm font-medium text-gray-700 hover:text-blue-700 hover:bg-blue-50/80 transition shrink-0"
-              >
-                <Icon size={16} className="text-blue-600" />
-                {label}
+          {/* ── Welcome Banner ── */}
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+            <div
+              className="rounded-2xl p-6 mb-6 flex items-center justify-between"
+              style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)" }}
+            >
+              <div>
+                <p className="text-blue-200 text-sm font-medium mb-1">Welcome back 👋</p>
+                <h1 className="text-2xl font-extrabold text-white capitalize">{userName}</h1>
+                <div className="flex gap-3 mt-3">
+                  <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-semibold">
+                    {requests.length} Total Requests
+                  </span>
+                  <span className="text-xs bg-white/15 text-white px-3 py-1 rounded-full font-semibold">
+                    {activeRequests.length} Active
+                  </span>
+                </div>
+              </div>
+              <Link href="/request">
+                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                  className="flex items-center gap-2 bg-white text-blue-700 font-bold px-5 py-3 rounded-xl shadow-lg hover:bg-blue-50 transition text-sm shrink-0"
+                >
+                  <Plus size={16} /> New Request
+                </motion.button>
               </Link>
-            ))}
-          </div>
+            </div>
+
+            {/* ── Quick Nav ── */}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {[
+                { href: "/request", label: "Services", icon: Wrench },
+                { href: "/petrol", label: "Fuel Delivery", icon: Fuel },
+                { href: "/tracking", label: "Live Track", icon: Navigation },
+              ].map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2 px-4 py-2.5 glass rounded-xl text-sm font-semibold text-gray-700 hover:text-blue-700 hover:bg-blue-50/80 transition shrink-0"
+                >
+                  <Icon size={16} className="text-blue-600" />
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </motion.div>
 
           {/* ── Loading ── */}
           {loading && (
@@ -141,14 +158,15 @@ export default function Dashboard() {
 
           {/* ── Empty State ── */}
           {!loading && requests.length === 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass rounded-3xl p-16 text-center">
-              <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Car className="text-gray-400" size={32} />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card rounded-3xl p-16 text-center">
+              <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-5"
+                style={{ background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)" }}>
+                <Car className="text-blue-500" size={36} />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No requests yet</h3>
-              <p className="text-gray-500 text-sm mb-6">Create your first roadside assistance request and we'll find a mechanic near you.</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">No requests yet</h3>
+              <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">Create your first roadside assistance request and we'll find a mechanic near you instantly.</p>
               <Link href="/request">
-                <button className="btn-primary">Create Request</button>
+                <button className="btn-primary">Create My First Request</button>
               </Link>
             </motion.div>
           )}
@@ -156,7 +174,10 @@ export default function Dashboard() {
           {/* ── Active Requests ── */}
           {!loading && activeRequests.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-[28px] font-bold text-gray-900 mb-4">Active</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                Active
+              </h2>
               <div className="space-y-4">
                 {activeRequests.map((req, i) => (
                   <RequestCard key={req.id} req={req} index={i} user={user} onPaySuccess={() => fetchRequests(user?.id)} />
@@ -168,7 +189,7 @@ export default function Dashboard() {
           {/* ── Past Requests ── */}
           {!loading && pastRequests.length > 0 && (
             <div>
-              <h2 className="text-[28px] font-bold text-gray-900 mb-4">History</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">History</h2>
               <div className="space-y-3">
                 {pastRequests.map((req, i) => (
                   <RequestCard key={req.id} req={req} index={i} user={user} onPaySuccess={() => fetchRequests(user?.id)} compact />
