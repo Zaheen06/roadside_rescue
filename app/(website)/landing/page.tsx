@@ -1,14 +1,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Clock, Shield, Navigation, Phone, Car, Fuel, Wrench, CheckCircle, Star, Zap, MapPin } from "lucide-react";
+import { ArrowRight, Clock, Shield, Navigation, Phone, Car, Fuel, Wrench, CheckCircle, Star, Zap, MapPin, Truck } from "lucide-react";
 import Link from "next/link";
 
 const SERVICES = [
-  { icon: Wrench, title: "Puncture Repair", price: "From ₹100", desc: "Fast on-site tyre repair anywhere you're stuck.", tag: "Most Popular", tagColor: "badge-blue", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-  { icon: Car, title: "Stepney Change", price: "From ₹200", desc: "Professional spare tyre replacement in minutes.", tag: null, iconBg: "bg-violet-50", iconColor: "text-violet-600" },
-  { icon: Wrench, title: "Tube Replacement", price: "From ₹500", desc: "New tube fitted at your exact location.", tag: null, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
-  { icon: Fuel, title: "Fuel Delivery", price: "From ₹200", desc: "Petrol or diesel delivered directly to you.", tag: "24/7", tagColor: "badge-green", iconBg: "bg-amber-50", iconColor: "text-amber-600" },
+  { icon: Wrench, title: "Puncture Repair", price: "From ₹100", desc: "Fast on-site tyre repair anywhere you're stuck.", tag: "Most Popular", tagColor: "badge-blue", iconBg: "bg-blue-50", iconColor: "text-blue-600", href: "/request" },
+  { icon: Car, title: "Stepney Change", price: "From ₹200", desc: "Professional spare tyre replacement in minutes.", tag: null, iconBg: "bg-violet-50", iconColor: "text-violet-600", href: "/request" },
+  { icon: Wrench, title: "Tube Replacement", price: "From ₹500", desc: "New tube fitted at your exact location.", tag: null, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", href: "/request" },
+  { icon: Fuel, title: "Fuel Delivery", price: "From ₹200", desc: "Petrol or diesel delivered directly to you.", tag: "24/7", tagColor: "badge-green", iconBg: "bg-amber-50", iconColor: "text-amber-600", href: "/petrol" },
+  { icon: Truck, title: "Car Tow Service", price: "₹25/km + ₹50", desc: "Tow your car to any garage or destination safely.", tag: "New", tagColor: "badge-purple", iconBg: "bg-orange-50", iconColor: "text-orange-600", href: "/tow" },
 ];
 
 const STATS = [
@@ -20,14 +21,14 @@ const STATS = [
 
 const WHY_US = [
   { icon: Clock, title: "15–30 Min Response", desc: "A certified mechanic reaches your location within minutes of your request.", iconBg: "bg-blue-50", iconColor: "text-blue-600" },
-  { icon: Shield, title: "Verified Mechanics", desc: "Every technician is background-checked and professionally trained.", iconBg: "bg-violet-50", iconColor: "text-violet-600" },
+  { icon: Shield, title: "Verified Mechanics", desc: "Every mechanic is background-checked and professionally trained.", iconBg: "bg-violet-50", iconColor: "text-violet-600" },
   { icon: Navigation, title: "Live GPS Tracking", desc: "Watch your mechanic approach in real-time on an interactive map.", iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
 ];
 
 const STEPS = [
   { step: "01", title: "Select a Service", desc: "Choose tyre repair, fuel delivery, or breakdown help." },
   { step: "02", title: "Share Your Location", desc: "Allow location access or type your address." },
-  { step: "03", title: "Mechanic Dispatched", desc: "We match and dispatch the nearest available technician." },
+  { step: "03", title: "Mechanic Dispatched", desc: "We match and dispatch the nearest available mechanic." },
   { step: "04", title: "Get Helped & Pay", desc: "Service completed. Pay securely via UPI or card." },
 ];
 
@@ -141,20 +142,21 @@ export default function LandingPage() {
             {SERVICES.map((s, i) => {
               const Icon = s.icon;
               return (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }} transition={{ delay: i * 0.08 }}
-                  className="feature-card relative group cursor-pointer"
-                >
-                  {s.tag && <span className={`badge ${s.tagColor} absolute top-4 right-4`}>{s.tag}</span>}
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${s.iconBg}`}>
-                    <Icon size={22} className={s.iconColor} />
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-1.5 text-[15px]">{s.title}</h3>
-                  <p className="text-gray-500 text-sm mb-4 leading-relaxed">{s.desc}</p>
-                  <p className="font-bold text-blue-600 text-sm">{s.price}</p>
-                </motion.div>
+                <Link key={i} href={s.href}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                    className="feature-card relative group cursor-pointer h-full"
+                  >
+                    {s.tag && <span className={`badge ${s.tagColor} absolute top-4 right-4`}>{s.tag}</span>}
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-5 ${s.iconBg}`}>
+                      <Icon size={22} className={s.iconColor} />
+                    </div>
+                    <h3 className="font-bold text-gray-900 mb-1.5 text-[15px]">{s.title}</h3>
+                    <p className="text-gray-500 text-sm mb-4 leading-relaxed">{s.desc}</p>
+                    <p className="font-bold text-blue-600 text-sm">{s.price}</p>
+                  </motion.div>
+                </Link>
               );
             })}
           </div>
@@ -348,7 +350,7 @@ export default function LandingPage() {
               <div>
                 <p className="text-white text-sm font-bold mb-3">Company</p>
                 <div className="flex flex-col gap-2 text-slate-400 text-sm">
-                  <Link href="/technician/auth" className="hover:text-white transition">Technician Portal</Link>
+                  <Link href="/technician/auth" className="hover:text-white transition">Mechanic Portal</Link>
                   <Link href="/tracking" className="hover:text-white transition">Live Tracking</Link>
                   <a href="tel:+919876543210" className="hover:text-white transition">+91 98765 43210</a>
                 </div>

@@ -235,7 +235,7 @@ body {
 
 .badge-purple {
   background: #F3E8FF;
-  color: #7E22CE;
+  color: #7C3AED;
 }
 
 .badge-gray {
@@ -269,8 +269,15 @@ select {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-12px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
 }
 
 .animate-float {

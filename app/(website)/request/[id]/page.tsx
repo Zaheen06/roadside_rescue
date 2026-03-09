@@ -64,7 +64,7 @@ export default function RequestDetailPage() {
           async (payload: any) => {
             const newStatus = payload?.new?.status;
             const userId = (await supabase.auth.getUser()).data.user?.id;
-            if (userId && newStatus === "accepted") sendPushNotification(userId, "🚗 Technician Assigned!", "A technician has accepted your request.", `/request/${requestId}`);
+            if (userId && newStatus === "accepted") sendPushNotification(userId, "🔧 Mechanic Assigned!", "A mechanic has accepted your request.", `/request/${requestId}`);
             else if (userId && newStatus === "completed") sendPushNotification(userId, "✅ Service Completed", "Your service has been completed!", `/request/${requestId}`);
             fetchRequest();
           }).subscribe();
@@ -229,7 +229,7 @@ export default function RequestDetailPage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs font-bold uppercase tracking-widest text-blue-600">
-                    {request.status === "pending" ? "Contacting Technician..." : "Assigned Technician"}
+                    {request.status === "pending" ? "Contacting Mechanic..." : "Assigned Mechanic"}
                   </p>
                   {countdown !== null && (
                     <span className="text-xs font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full animate-pulse">

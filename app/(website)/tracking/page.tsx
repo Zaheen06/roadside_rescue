@@ -6,7 +6,7 @@ import { Search, MapPin, Package, Clock, ArrowRight, Navigation } from "lucide-r
 import Link from "next/link";
 
 const FEATURES = [
-  { icon: MapPin, title: "Live Location", desc: "Real-time technician tracking on map", bg: "bg-blue-50", color: "text-blue-600" },
+  { icon: MapPin, title: "Live Location", desc: "Real-time mechanic tracking on map", bg: "bg-blue-50", color: "text-blue-600" },
   { icon: Package, title: "Status Updates", desc: "Instant status change notifications", bg: "bg-emerald-50", color: "text-emerald-600" },
   { icon: Clock, title: "ETA Estimates", desc: "Accurate live arrival time calculation", bg: "bg-violet-50", color: "text-violet-600" },
 ];

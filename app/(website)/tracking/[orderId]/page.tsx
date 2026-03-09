@@ -3,184 +3,188 @@
 import { useEffect, useState, use } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import dynamic from "next/dynamic";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Package, CheckCircle } from "lucide-react";
+import { Clock, MapPin, Navigation, CheckCircle, Loader, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 
-// Dynamically import map to avoid SSR issues with Leaflet
 const TrackingMap = dynamic(() => import("@/components/TrackingMap"), {
     ssr: false,
-    loading: () => <div className="h-[400px] w-full bg-slate-100 animate-pulse rounded-2xl" />
+    loading: () => <div className="h-[420px] w-full rounded-2xl animate-pulse" style={{ background: "#E2E8F0" }} />,
 });
 
 interface PageProps {
     params: Promise<{ orderId: string }>;
 }
 
+const STAT_ITEMS = [
+    { label: "Est. Arrival", valueKey: "eta", icon: Clock, bg: "bg-blue-50", color: "text-blue-600" },
+    { label: "Status", valueKey: "status", icon: Navigation, bg: "bg-emerald-50", color: "text-emerald-600" },
+    { label: "Live Tracking", valueKey: "tracking", icon: MapPin, bg: "bg-violet-50", color: "text-violet-600" },
+];
+
 export default function TrackingPage({ params }: PageProps) {
-    // Unwrap params using React.use()
     const resolvedParams = use(params);
     const orderId = resolvedParams.orderId;
 
     const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
     const [pathHistory, setPathHistory] = useState<[number, number][]>([]);
-    const [status, setStatus] = useState("Waiting for updates...");
+    const [status, setStatus] = useState("Waiting...");
     const [eta, setEta] = useState("-- mins");
     const [otp, setOtp] = useState<string | null>(null);
+    const [connected, setConnected] = useState(false);
+
+    const isCompleted = status === "Delivered" || status === "Completed";
 
     useEffect(() => {
-        // Fetch order details for OTP
         const fetchOrderDetails = async () => {
-            const { data } = await supabase
-                .from("requests")
-                .select("otp, status")
-                .eq("id", orderId)
-                .single();
+            const { data } = await supabase.from("requests").select("otp, status").eq("id", orderId).single();
             if (data?.otp) setOtp(data.otp);
-            if (data?.status === "delivered" || data?.status === "completed") {
-                setStatus("Delivered");
+            if (data?.status === "completed" || data?.status === "delivered") {
+                setStatus("Completed");
                 setEta("Arrived");
             }
         };
         fetchOrderDetails();
 
-        // Join room
         const channel = supabase.channel(`tracking_${orderId}`);
-
         channel
-            .on('broadcast', { event: 'location_broadcast' }, (payload) => {
+            .on("broadcast", { event: "location_broadcast" }, (payload) => {
                 const data = payload.payload;
-                console.log("Location received:", data);
                 const newPoint: [number, number] = [data.lat, data.lng];
-
                 setLocation({ lat: data.lat, lng: data.lng });
                 setPathHistory((prev) => [...prev, newPoint]);
-
-                if (data.status === "delivered") {
-                    setStatus("Delivered");
-                    setEta("Arrived");
-                } else {
-                    setStatus("On the way");
-                    setEta("15 mins"); // Mock ETA
-                }
+                setConnected(true);
+                if (data.status === "delivered") { setStatus("Completed"); setEta("Arrived"); }
+                else { setStatus("On the way"); setEta("~15 mins"); }
             })
-            .on('broadcast', { event: 'status_update' }, (payload) => {
-                const data = payload.payload;
-                if (data.status === 'delivered') {
-                    setStatus("Delivered");
-                    setEta("Arrived");
-                }
+            .on("broadcast", { event: "status_update" }, (payload) => {
+                if (payload.payload?.status === "delivered") { setStatus("Completed"); setEta("Arrived"); }
             })
-            .subscribe();
+            .subscribe(() => setConnected(true));
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [orderId]);
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8 relative">
+        <div className="min-h-screen py-10 px-4" style={{ background: "#F8FAFC" }}>
             <AnimatePresence>
-                {status === "Delivered" && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            initial={{ y: 50, scale: 0.9 }}
-                            animate={{ y: 0, scale: 1 }}
-                            className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center space-y-4"
-                        >
-                            <div className="mx-auto w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
-                                <CheckCircle size={48} />
+                {isCompleted && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md">
+                        <motion.div initial={{ scale: 0.85, y: 40 }} animate={{ scale: 1, y: 0 }}
+                            className="bg-white rounded-3xl p-10 max-w-md w-full shadow-2xl text-center">
+                            <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-6"
+                                style={{ background: "linear-gradient(135deg, #DCFCE7, #BBF7D0)" }}>
+                                <CheckCircle size={48} className="text-green-600" />
                             </div>
-                            <h2 className="text-3xl font-bold text-slate-900">Order Completed!</h2>
-                            <p className="text-slate-600 text-lg">Your roadside rescue request has been successfully completed by the technician.</p>
-                            <button
-                                onClick={() => window.location.href = '/'}
-                                className="mt-8 w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-lg transition-all"
-                            >
-                                Back to Home
-                            </button>
+                            <h2 className="text-2xl font-extrabold text-gray-900 mb-3">Service Completed! 🎉</h2>
+                            <p className="text-gray-500 mb-8">Your roadside rescue request has been successfully completed by the technician.</p>
+                            <div className="flex gap-3">
+                                <Link href="/dashboard" className="flex-1">
+                                    <button className="btn-primary w-full py-3">Go to Dashboard</button>
+                                </Link>
+                                <Link href="/landing" className="flex-1">
+                                    <button className="btn-secondary w-full py-3">Home</button>
+                                </Link>
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
-            <div className="max-w-4xl mx-auto space-y-6">
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="max-w-4xl mx-auto space-y-5">
+
+                {/* Header */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Delivery Tracking</h1>
-                        <p className="text-slate-500">Order #{orderId}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                                {connected ? "Live" : "Connecting..."}
+                            </span>
+                        </div>
+                        <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Mechanic Tracking</h1>
+                        <p className="text-gray-400 text-xs font-mono mt-0.5">Request #{orderId.slice(0, 16)}...</p>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                        <Badge
-                            variant={status === "Delivered" ? "default" : "secondary"}
-                            className="text-lg px-4 py-1"
-                        >
-                            {status}
-                        </Badge>
-                        {otp && status !== "Delivered" && (
-                            <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg border border-yellow-200 shadow-sm flex items-center gap-2">
-                                <span className="text-sm font-semibold uppercase tracking-wider">OTP PIN</span>
-                                <span className="text-xl font-mono font-bold">{otp}</span>
+
+                    {/* OTP Badge */}
+                    {otp && !isCompleted && (
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}
+                            className="flex items-center gap-3 px-5 py-3 rounded-2xl border-2"
+                            style={{ background: "linear-gradient(135deg, #FEF9C3, #FEF08A)", borderColor: "#F59E0B" }}>
+                            <AlertCircle size={18} className="text-amber-600 shrink-0" />
+                            <div>
+                                <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Share OTP with Mechanic</p>
+                                <p className="text-2xl font-black tracking-widest text-amber-800 font-mono">{otp}</p>
                             </div>
-                        )}
-                    </div>
-                </div>
+                        </motion.div>
+                    )}
+                </motion.div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
-                        <CardContent className="pt-6 flex items-center gap-4">
-                            <div className="p-3 bg-blue-100 text-blue-600 rounded-full">
-                                <Clock size={24} />
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                    className="grid grid-cols-3 gap-4">
+                    {[
+                        { label: "ETA", value: eta, icon: Clock, bg: "bg-blue-50", color: "text-blue-600" },
+                        { label: "Status", value: status, icon: Navigation, bg: "bg-emerald-50", color: "text-emerald-600" },
+                        { label: "GPS", value: location ? "Active" : "Waiting", icon: MapPin, bg: "bg-violet-50", color: "text-violet-600" },
+                    ].map(({ label, value, icon: Icon, bg, color }) => (
+                        <div key={label} className="card !p-4" style={{ borderRadius: 18 }}>
+                            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center mb-3`}>
+                                <Icon size={18} className={color} />
                             </div>
-                            <div>
-                                <p className="text-sm text-slate-500 uppercase font-semibold">Estimated Time</p>
-                                <p className="text-xl font-bold">{eta}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</p>
+                            <p className="font-extrabold text-gray-900 text-sm mt-0.5">{value}</p>
+                        </div>
+                    ))}
+                </motion.div>
 
-                    <Card>
-                        <CardContent className="pt-6 flex items-center gap-4">
-                            <div className="p-3 bg-green-100 text-green-600 rounded-full">
-                                <Package size={24} />
+                {/* Map */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+                    className="card overflow-hidden !p-0" style={{ borderRadius: 24 }}>
+                    {!location && !isCompleted && (
+                        <div className="flex flex-col items-center justify-center h-24 gap-2 border-b border-gray-100">
+                            <div className="flex items-center gap-2 text-gray-400 text-sm font-medium">
+                                <Loader size={16} className="animate-spin" />
+                                Waiting for technician to start tracking...
                             </div>
-                            <div>
-                                <p className="text-sm text-slate-500 uppercase font-semibold">Order Status</p>
-                                <p className="text-xl font-bold">{status}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    )}
+                    <TrackingMap
+                        lat={location?.lat || 0}
+                        lng={location?.lng || 0}
+                        pathHistory={pathHistory}
+                    />
+                </motion.div>
 
-                    <Card>
-                        <CardContent className="pt-6 flex items-center gap-4">
-                            <div className="p-3 bg-purple-100 text-purple-600 rounded-full">
-                                <MapPin size={24} />
+                {/* Status Timeline */}
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                    className="card" style={{ borderRadius: 24 }}>
+                    <h3 className="font-bold text-gray-900 mb-5 text-sm">Journey Progress</h3>
+                    <div className="space-y-4">
+                        {[
+                            { label: "Request Accepted", done: true },
+                            { label: "Mechanic Dispatched", done: connected },
+                            { label: "En Route to You", done: status === "On the way" || isCompleted },
+                            { label: "Service Completed", done: isCompleted },
+                        ].map(({ label, done }, i) => (
+                            <div key={i} className="flex items-center gap-4">
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all ${done
+                                    ? "bg-green-600"
+                                    : "bg-gray-100"
+                                    }`}>
+                                    {done
+                                        ? <CheckCircle size={16} className="text-white" />
+                                        : <div className="w-2 h-2 rounded-full bg-gray-300" />
+                                    }
+                                </div>
+                                <span className={`text-sm font-semibold ${done ? "text-gray-900" : "text-gray-400"}`}>{label}</span>
+                                {i === 1 && !done && <Loader size={14} className="text-blue-400 animate-spin ml-auto" />}
                             </div>
-                            <div>
-                                <p className="text-sm text-slate-500 uppercase font-semibold">Distance</p>
-                                <p className="text-xl font-bold">2.4 km</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Map Section */}
-                <Card className="overflow-hidden border-0 shadow-xl">
-                    <CardContent className="p-0">
-                        <TrackingMap
-                            lat={location?.lat || 0}
-                            lng={location?.lng || 0}
-                            pathHistory={pathHistory}
-                        />
-                    </CardContent>
-                </Card>
+                        ))}
+                    </div>
+                </motion.div>
 
             </div>
         </div>

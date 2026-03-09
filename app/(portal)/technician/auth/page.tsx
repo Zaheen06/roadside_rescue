@@ -98,8 +98,8 @@ export default function TechnicianAuthPage() {
           <div className="bg-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-600/20">
             <Wrench className="text-white" size={32} />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Technician Portal</h1>
-          <p className="text-gray-500">Roadside Rescue Technician Login</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mechanic Portal</h1>
+          <p className="text-gray-500">Roadside Rescue Mechanic Login</p>
         </div>
 
         {/* Auth Form */}
@@ -195,13 +195,13 @@ export default function TechnicianAuthPage() {
               disabled={loading}
               className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl disabled:opacity-50"
             >
-              {loading ? "Processing..." : isLogin ? "Sign In" : "Register as Technician"}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Register as Mechanic"}
             </button>
           </form>
 
           {message && (
             <p className={`mt-4 text-center text-sm ${message.includes("successful") || message.includes("created")
-                ? "text-green-600" : "text-red-600"
+              ? "text-green-600" : "text-red-600"
               }`}>
               {message}
             </p>

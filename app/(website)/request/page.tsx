@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 export default function RequestPage() {
   return (
     <AuthGuard>
-      <div style={{ background: "#F1F5F9", minHeight: "100vh", padding: "40px 16px" }}>
+      <div style={{ background: "#F8FAFC", minHeight: "100vh", padding: "60px 16px 80px" }}>
         <div style={{ maxWidth: 560, margin: "0 auto" }}>
           <RequestForm />
         </div>

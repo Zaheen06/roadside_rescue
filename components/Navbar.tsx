@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 const NAV_LINKS = [
   { href: "/landing", label: "Home" },
   { href: "/request", label: "Services" },
+  { href: "/tow", label: "Tow" },
   { href: "/dashboard", label: "My Requests", requiresAuth: true },
   { href: "/tracking", label: "Track" },
   { href: "/petrol", label: "Fuel" },
@@ -116,7 +117,7 @@ export default function Navbar() {
               </button>
             </Link>
 
-            {/* Technician Portal */}
+            {/* Mechanic Portal */}
             <Link
               href="/technician"
               className="text-sm font-semibold px-3 py-1.5 rounded-xl transition-all"
@@ -124,7 +125,7 @@ export default function Navbar() {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#DBEAFE"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#EFF6FF"; }}
             >
-              Technician Portal
+              Mechanic Portal
             </Link>
 
             <div style={{ width: 1, height: 24, background: "#E2E8F0" }} />
@@ -207,7 +208,7 @@ export default function Navbar() {
                 className="px-4 py-2.5 text-sm font-bold rounded-xl"
                 style={{ color: "#2563EB", background: "#EFF6FF" }}
               >
-                Technician Portal
+                Mechanic Portal
               </Link>
             </div>
 

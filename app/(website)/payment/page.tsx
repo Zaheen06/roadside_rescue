@@ -96,7 +96,7 @@ function PaymentContent() {
           <p className="text-xs text-gray-400 mb-8">Request ID: {request.id.slice(0, 8)}...</p>
           <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mb-6 text-left">
             <p className="text-green-800 font-bold text-sm mb-1">What's next?</p>
-            <p className="text-green-700 text-xs leading-relaxed">Our technician will complete your service shortly. Track the progress in your request details.</p>
+            <p className="text-green-700 text-xs leading-relaxed">Our mechanic will complete your service shortly. Track the progress in your request details.</p>
           </div>
           <div className="flex gap-3">
             <button onClick={() => router.push(`/request/${requestId}`)} className="btn-primary flex-1">View Request</button>
